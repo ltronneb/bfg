@@ -1,0 +1,11 @@
+Package: bfg
+Type: Package
+Title: bfg: High-dimensional Bayesian variable selection in function-on-scalar regression via coregionalisation
+Version: 1.0
+Date: 2025-12-08
+Authors@R: person("Leiv", "Rønneberg", role = c("aut", "cre"), email = "ltronneb@math.uio.no")
+Description: More about what it does (maybe more than one line).
+License: GPL (>= 3)
+Encoding: UTF-8
+Imports: Rcpp (>= 1.0.14), RcppParallel (>= 5.1.10)
+LinkingTo: Rcpp (>= 1.0.14), RcppEigen (>= 0.3.4.0.2), RcppParallel (>= 5.1.10), StanHeaders (>= 2.26.0), BH (>= 1.87.0-1)
