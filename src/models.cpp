@@ -54,7 +54,7 @@ void clear_cache() {
 }
 
 // [[Rcpp::export]]
-void prepare_derivative_cache(Rcpp::NumericMatrix X) {
+void prepare_cache(Rcpp::NumericMatrix X) {
   Eigen::MatrixXd X_eigen = as<Eigen::MatrixXd>(X);
   get_cache().initialize(X_eigen);
 }
@@ -802,7 +802,7 @@ T gp_kron_logpost_1d_horseshoe(// Data
 
 // Function to sample hyperparameters of F (minus the lengthscale)
 // [[Rcpp::export]]
-Rcpp::List sample_f_hypers_LTR(Eigen::MatrixXd X,  // Data
+Rcpp::List sample_f_hypers(Eigen::MatrixXd X,  // Data
                                const Eigen::MatrixXd& Qt,
                                const Eigen::VectorXd& Dt,
                                const Eigen::MatrixXd& F,  // Data

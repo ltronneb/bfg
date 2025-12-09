@@ -1,4 +1,7 @@
 useDynLib(bfg, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
 importFrom(RcppParallel, RcppParallelLibs)
-exportPattern("^[[:alpha:]]+")
+export(bfg)
+export(gen_data)
+importFrom(MASS,mvrnorm)
+importFrom(R6,R6Class)
