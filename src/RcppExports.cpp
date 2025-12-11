@@ -31,8 +31,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // sample_f_hypers
-Rcpp::List sample_f_hypers(Eigen::MatrixXd X, const Eigen::MatrixXd& Qt, const Eigen::VectorXd& Dt, const Eigen::MatrixXd& F, double tau0_prime_in, double nugget_in, double ell_in, const Eigen::VectorXd& q_val, const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, const double& slab_scale, const double& slab_df, const int& nu_local, const int& nu_global);
-RcppExport SEXP _bfg_sample_f_hypers(SEXP XSEXP, SEXP QtSEXP, SEXP DtSEXP, SEXP FSEXP, SEXP tau0_prime_inSEXP, SEXP nugget_inSEXP, SEXP ell_inSEXP, SEXP q_valSEXP, SEXP mass_matrix_diagSEXP, SEXP epsilonSEXP, SEXP LSEXP, SEXP slab_scaleSEXP, SEXP slab_dfSEXP, SEXP nu_localSEXP, SEXP nu_globalSEXP) {
+Rcpp::List sample_f_hypers(Eigen::MatrixXd X, const Eigen::MatrixXd& Qt, const Eigen::VectorXd& Dt, const Eigen::MatrixXd& F, const Eigen::VectorXd& gamma, double tau0_prime_in, double nugget_in, double ell_in, const Eigen::VectorXd& q_val, const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, const double& slab_scale, const double& slab_df, const int& nu_local, const int& nu_global);
+RcppExport SEXP _bfg_sample_f_hypers(SEXP XSEXP, SEXP QtSEXP, SEXP DtSEXP, SEXP FSEXP, SEXP gammaSEXP, SEXP tau0_prime_inSEXP, SEXP nugget_inSEXP, SEXP ell_inSEXP, SEXP q_valSEXP, SEXP mass_matrix_diagSEXP, SEXP epsilonSEXP, SEXP LSEXP, SEXP slab_scaleSEXP, SEXP slab_dfSEXP, SEXP nu_localSEXP, SEXP nu_globalSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -40,6 +40,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Qt(QtSEXP);
     Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Dt(DtSEXP);
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type F(FSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type gamma(gammaSEXP);
     Rcpp::traits::input_parameter< double >::type tau0_prime_in(tau0_prime_inSEXP);
     Rcpp::traits::input_parameter< double >::type nugget_in(nugget_inSEXP);
     Rcpp::traits::input_parameter< double >::type ell_in(ell_inSEXP);
@@ -51,7 +52,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const double& >::type slab_df(slab_dfSEXP);
     Rcpp::traits::input_parameter< const int& >::type nu_local(nu_localSEXP);
     Rcpp::traits::input_parameter< const int& >::type nu_global(nu_globalSEXP);
-    rcpp_result_gen = Rcpp::wrap(sample_f_hypers(X, Qt, Dt, F, tau0_prime_in, nugget_in, ell_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global));
+    rcpp_result_gen = Rcpp::wrap(sample_f_hypers(X, Qt, Dt, F, gamma, tau0_prime_in, nugget_in, ell_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -106,7 +107,7 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_bfg_clear_cache", (DL_FUNC) &_bfg_clear_cache, 0},
     {"_bfg_prepare_cache", (DL_FUNC) &_bfg_prepare_cache, 1},
-    {"_bfg_sample_f_hypers", (DL_FUNC) &_bfg_sample_f_hypers, 15},
+    {"_bfg_sample_f_hypers", (DL_FUNC) &_bfg_sample_f_hypers, 16},
     {"_bfg_sample_z_hypers", (DL_FUNC) &_bfg_sample_z_hypers, 12},
     {"_bfg_sample_f_hypers_SKIM", (DL_FUNC) &_bfg_sample_f_hypers_SKIM, 15},
     {NULL, NULL, 0}

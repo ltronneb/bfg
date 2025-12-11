@@ -6,7 +6,7 @@
 #'@param tau0_prime: scaling factor for the global horseshoe parameter
 #'@param interactions: bool, estimate model with interactions? (default F)
 #'@param thinning: int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)
-#'@param N_iter: number of MCMC iterations (default 2000)
+#'@param N.iter: number of MCMC iterations (default 2000)
 #'
 #'@export
 bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=2000, plotting=F){
@@ -16,10 +16,10 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
   
   # Handle missing values in y
   missing = which(is.na(Y),arr.ind=T)
-  print(sum(missing))
+  # print(nrow(missing))
   working_Y = Y
   # Overwrite working Y with current imputed values (init from N(0,1))
-  working_Y[missing] = rnorm(sum(missing))
+  working_Y[missing] = rnorm(nrow(missing))
   
   # Pick out some key numbers and quantities and define sensible inits
   p = ncol(X)
@@ -27,9 +27,10 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
   n = nrow(Y)
   # ell0 = median(abs(outer(t,t,FUN="-")))
   ell0 = 0.1
-  print(ell0)
-  sigma0 = 0.22
-  eta0 = 1.182
+  # print(ell0)
+  sigma0 = 0.01
+  eta0 = rep(NA,N.iter)
+  eta0[1] = 1.182
   F0 = working_Y
   Z0 = matrix(0,ncol=m,nrow=n)
   
@@ -46,13 +47,14 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
                                                            tau0_prime = tau0_prime,
                                                            nugget = 1e-6, ell = ell0),
                                 N.iter = N.iter)
-    F_sampler = KroneckerMatheronSampler$new(data = list(X=X,
+    F_sampler = KroneckerMatheronSamplerF$new(data = list(X=X,
                                                          t=t,
                                                          Y=working_Y,
                                                          ell=ell0,
                                                          c=F_hypers$c[1],
                                                          tau = F_hypers$tau[1],
                                                          lambda = F_hypers$lambda[1,],
+                                                         gamma = rep(1,n),
                                                          sigma = sigma0),
                                              N.params = c(n,m),
                                              N.iter = F_hypers$N.iter,
@@ -63,7 +65,7 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
                                                               Y = F0,
                                                               tau0_prime = tau0_prime,
                                                               nugget = 1e-6, ell = ell0),
-                                   N.iter = N_iter)
+                                   N.iter = N.iter)
     F_sampler = KroneckerMatheronSamplerSKIM$new(data = list(X=X,
                                                              t=t,
                                                              Y=working_Y,
@@ -83,7 +85,7 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
   F_hypers$samples[1,] = 2
   if (interactions){
     # but also for the interactions init with no interactions active
-    F_hypers$samples[1,2*p+5] = - 5
+    F_hypers$samples[1,2*p+5] = -10
   }
   
   # Set up samplers for Z
@@ -92,21 +94,19 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
                                                             Y = Z0,
                                                             nugget = 1e-06, ell = ell0,
                                                             eta = eta0, 
-                                                            beta_a = 1, beta_b =  200, dir_a = 0.1),
+                                                            beta_a = 1, beta_b =  1000, dir_a = 1.5),
                               N.iter = N.iter)
-  Z_sampler = KroneckerMatheronSampler$new(data = list(X=diag(n),
+  Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                        t=t,
                                                        Y=working_Y,
                                                        ell = ell0,
-                                                       c=0,
-                                                       tau = 1,
-                                                       lambda = Z_hypers$gamma[1,],
+                                                       gamma = Z_hypers$gamma[1,],
                                                        sigma = sigma0),
                                            N.params = c(n,m),
-                                           N.iter = F_hypers$N.iter+F_hypers$control$warmup,
+                                           N.iter = N.iter,
                                            thinning = thinning)
   # Sampler for variance
-  s2_sampler = GibbsSamplerVariance$new(n = n, m = m, sigma_sq_a = 20, sigma_sq_b = 1e-5,
+  s2_sampler = GibbsSamplerVariance$new(n = n, m = m, sigma_sq_a = 2, sigma_sq_b = 0.1,
                                         data = list(Y = working_Y, F = F_sampler$samples[1,,], 
                                                     Z = Z_sampler$samples[1,,]))
   # Sampler for lengthscale
@@ -125,20 +125,29 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
                          F_sampler$samples[i-1,,]+Z_sampler$samples[i-1,,],
                          sqrt(s2_sampler$samples[i-1])),
                    ncol=m,nrow=n)
-    working_Y[missing] = imp_Y[working_Y[missing]]
+    working_Y[missing] = imp_Y[missing]
     
     
     ############################################################################
     ############### SAMPLING HYPERS ############################################
     ############################################################################
+    # F_hypers$data$gamma = Z_hypers$gamma[i-1,]
+    F_hypers$data$gamma = rep(0,n)
     F_hypers$data$Y = F_sampler$samples[i-1,,]
     # # Sample F_hypers
     F_hypers$sample()
     # # Sample Z_hypers
     eta = n*(F_hypers$c[i]^2 + sum((F_hypers$tau[i]*F_hypers$lambda[i,])^2) + s2_sampler$samples[i-1])
+    print(paste0("eta: ",eta))
     Z_hypers$data$eta[i] = eta
+    # print(Z_hypers$data$eta[1:i])
     Z_hypers$data$Y = Z_sampler$samples[i-1,,]
     Z_hypers$sample()
+    
+    # Print proportion of variance explained
+    gamma_sum = sum(Z_hypers$gamma[i,]^2)
+    eta_ratio = (gamma_sum)/(eta + gamma_sum)
+    print(paste0("eta ratio: ", eta_ratio))
     
     ############################################################################
     ############### SAMPLING FUNCTIONS #########################################
@@ -152,18 +161,28 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
       F_sampler$data$tau2 = F_hypers$tau2[i]
     }
     F_sampler$data$lambda = F_hypers$lambda[i,]
-    Z_sampler$data$lambda = Z_hypers$gamma[i,]
+    F_sampler$data$gamma = Z_hypers$gamma[i,]
+    # print(F_sampler$data$gamma)
+    Z_sampler$data$gamma = Z_hypers$gamma[i,]
     for (k in 0:(thinning-1)){
       Z_sampler$data$Y = working_Y - F_sampler$unthinned_samples[F_sampler$iteration-1,,]
       Z_sampler$sample()
       
-      # # Sum-to-zero correction here # TRY TURNING THIS OFF!
-      # B = diag(n) - 1/n*rep(1,n)%*%t(rep(1,n))
-      # tmp = Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
-      # tmp = B%*%tmp
-      # Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = tmp
+      # Sum-to-zero correction here # TRY TURNING THIS OFF!
+      B = diag(n) - 1/n*rep(1,n)%*%t(rep(1,n))
+      tmp = Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
+      tmp = B%*%tmp
+      Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = tmp
+      # Orthogonal here
+      # Precompute the pseudo-inverse factor
+      # tmpF = F_sampler$unthinned_samples[F_sampler$iteration-1,,]
+      # tmpZ = Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
+      # P = tmpF%*%solve(t(tmpF)%*%tmpF + 1e-6*diag(ncol(tmpF)),t(tmpF))
+      # 
+      # Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = (diag(nrow(tmpF))-P)%*%tmpZ
       
-      F_sampler$data$Y = working_Y - Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
+      # F_sampler$data$Y = working_Y - Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
+      F_sampler$data$Y = working_Y
       F_sampler$sample()
     }
     ############################################################################
@@ -173,6 +192,7 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
     s2_sampler$data$Z = Z_sampler$samples[i,,]
     s2_sampler$data$Y = working_Y
     s2_sampler$sample()
+    # s2_sampler$samples[i] = 0.1231101^2
     # Update hypers in other samplers
     F_sampler$data$sigma = sqrt(s2_sampler$samples[i])
     Z_sampler$data$sigma = sqrt(s2_sampler$samples[i])
@@ -190,6 +210,8 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
     F_sampler$data$ell = ell_sampler$ell[i]
     Z_sampler$data$ell = ell_sampler$ell[i]
     
+    # print(Z_hypers$gamma[i,])
+      
     ## PLOTTING
     if (plotting){
       idx = 11
@@ -220,15 +242,24 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
       if (i > lag){
         lines(apply(Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
       }
-      plot(F_hypers$tau[i]*F_hypers$lambda[i,])
+      plot(F_hypers$lambda[i,])
       Sys.sleep(0.1)
       par(mfrow=c(1,1))
     }
+    # readline(prompt="Press [enter] to continue")
+    
   }
   
   # Now return the samplers and create an S4 object
-  
-  
+  L = list(samplers = list(F_sampler=F_sampler, F_hypers=F_hypers,
+                           Z_sampler=Z_sampler, Z_hypers=Z_hypers,
+                           ell_sampler=ell_sampler,s2_sampler=s2_sampler),
+           data = list(Y=Y,X=X,t=t,tau0_prime=tau0_prime,
+                       data_generated=data_generated,
+                       interactions=interactions,thinning=thinning,
+                       N.iter=N.iter, plotting=plotting)
+           )
+  return(L)
 }
 
 

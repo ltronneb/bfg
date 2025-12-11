@@ -388,6 +388,7 @@ stan::math::var gp_1dloglik_analyticgrad(const Eigen::MatrixXd& X,
                                          const Eigen::MatrixXd& F,
                                          const Eigen::MatrixXd& Qt, // Eigen-decomp of K_t
                                          const Eigen::VectorXd& Dt, // Eigen-decomp of K_t
+                                         const Eigen::VectorXd& gamma,
                                          const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1>& theta,
                                          bool first_step){
   // I need to compute f^T (K_t \kron K_x)^{-1}f
@@ -418,6 +419,7 @@ stan::math::var gp_1dloglik_analyticgrad(const Eigen::MatrixXd& X,
   // Ill just compare my solves to a full just to check
   Eigen::MatrixXd K_val = compute_XLambdaXt_core(cache.X_rcpp, diag);
   K_val.array() += c * c;
+  K_val.diagonal().array() += gamma.array().square();
   K_val.diagonal().array() += 1e-6;
   // Eigen::LLT<Eigen::MatrixXd> llt_full(K_val);
   
@@ -703,6 +705,7 @@ T gp_kron_logpost_1d_horseshoe(// Data
     const Eigen::MatrixXd& Qt,
     const Eigen::VectorXd& Dt,
     const Eigen::MatrixXd& F, // The data
+    const Eigen::VectorXd& gamma,
     // Hyperparameters
     const double& slab_scale,
     const double& slab_df,
@@ -777,7 +780,7 @@ T gp_kron_logpost_1d_horseshoe(// Data
   theta(p + 1) = c;
   
   // Get the log-likelihood
-  auto loglik = gp_1dloglik_analyticgrad(X,F,Qt,Dt,theta,first_step);
+  auto loglik = gp_1dloglik_analyticgrad(X,F,Qt,Dt,gamma,theta,first_step);
   
   // Add priors for parameters
   // Note Jacobian corrections
@@ -806,6 +809,7 @@ Rcpp::List sample_f_hypers(Eigen::MatrixXd X,  // Data
                                const Eigen::MatrixXd& Qt,
                                const Eigen::VectorXd& Dt,
                                const Eigen::MatrixXd& F,  // Data
+                               const Eigen::VectorXd& gamma,
                                double tau0_prime_in,  // Hypers
                                double nugget_in, // Hypers
                                double ell_in, // Hypers
@@ -826,7 +830,7 @@ Rcpp::List sample_f_hypers(Eigen::MatrixXd X,  // Data
   var ell = ell_in;
   // Set up the potential function lambda
   auto U = [&](const Eigen::Matrix<var, -1, 1> q_val, const bool first_step){
-    return -gp_kron_logpost_1d_horseshoe(X, Qt, Dt, F, //Data
+    return -gp_kron_logpost_1d_horseshoe(X, Qt, Dt, F, gamma, //Data
                                              slab_scale, slab_df, nu_local, // Hypers
                                              nu_global, tau0_prime, nugget, ell, // Hypers
                                              q_val, // Parameters

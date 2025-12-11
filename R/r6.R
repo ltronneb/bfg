@@ -46,7 +46,7 @@ HMC = R6Class(
       init_window = 25, # initial window size for slow adaptation
       window = NULL, # window size
       traj_length = 1.0, # target trajectory length
-      max_L = 200, # maximum number of leapfrog steps to perform
+      max_L = 2^6, # maximum number of leapfrog steps to perform
       t0 = 10, # Adaptation iteration offset
       delta = 0.8, # Target acceptance probability
       kappa = 0.75, # Adapatation relaxation exponent
@@ -77,9 +77,8 @@ HMC = R6Class(
       #data = NULL,
       control = NULL,
       #init = NULL,
-      L0 = 100, epsilon0 = 0.0001, 
+      L0 = self$control$max_L, epsilon0 = 0.0001, 
       alpha0 = 1, ...){
-      print("break1")
       if (!is.null(control)){
         self$control = modifyList(control, self$control)
       }
@@ -223,17 +222,17 @@ HMC_samplerF = R6Class("HMCSampler",
                            Dt = eigKt$values
                            step = tryCatch(
                              sample_f_hypers(self$data$X, Qt, Dt, 
-                                                 self$data$Y,
-                                                 self$data$tau0_prime,
-                                                 self$data$nugget, self$data$ell, 
-                                                 self$samples[self$iteration,], 
-                                                 self$control$mass_matrix, 
-                                                 self$current_epsilon,
-                                                 self$current_L,
-                                                 self$data$slab_scale,
-                                                 self$data$slab_df,
-                                                 self$data$nu_local,
-                                                 self$data$nu_global),
+                                             self$data$Y,self$data$gamma,
+                                             self$data$tau0_prime,
+                                             self$data$nugget, self$data$ell, 
+                                             self$samples[self$iteration,], 
+                                             self$control$mass_matrix, 
+                                             self$current_epsilon,
+                                             self$current_L,
+                                             self$data$slab_scale,
+                                             self$data$slab_df,
+                                             self$data$nu_local,
+                                             self$data$nu_global),
                              error = function(e) {
                                warning(paste0("Divergence! ", e))
                                # print(e)
@@ -329,16 +328,16 @@ HMC_samplerZ = R6Class("HMCSampler",
                            Dt = eigKt$values
                            step = tryCatch(
                              sample_z_hypers(Qt, Dt,
-                                                 self$data$Y,
-                                                 self$data$nugget,
-                                                 self$data$eta[self$iteration],
-                                                 self$data$beta_a,
-                                                 self$data$beta_b,
-                                                 self$data$dir_a,
-                                                 self$samples[self$iteration,], 
-                                                 self$control$mass_matrix, 
-                                                 self$current_epsilon,
-                                                 self$current_L),
+                                             self$data$Y,
+                                             self$data$nugget,
+                                             self$data$eta[self$iteration],
+                                             self$data$beta_a,
+                                             self$data$beta_b,
+                                             self$data$dir_a,
+                                             self$samples[self$iteration,], 
+                                             self$control$mass_matrix, 
+                                             self$current_epsilon,
+                                             self$current_L),
                              error = function(e) {
                                warning(paste0("Divergence! ", e))
                                # print(e)
@@ -400,7 +399,7 @@ HMC_samplerZ = R6Class("HMCSampler",
                            self$omega * self$data$eta
                          },
                          gamma = function(){
-                           sqrt(sweep(self$phi,1,self$data$eta,FUN="*"))
+                           sqrt(sweep(self$phi,1,self$omega_scaled,FUN="*"))
                          }
                        ),
                        private = list(
@@ -495,12 +494,12 @@ HMC_samplerSKIM = R6Class("HMCSampler",
                             }
                           )
 )
-#' Matheron sampler using the Kronecker structure to sample F and Z
+#' Matheron sampler using the Kronecker structure to sample F
 #'
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-KroneckerMatheronSampler = R6Class("KroneckerMatheronSampler",
+KroneckerMatheronSamplerF = R6Class("KroneckerMatheronSampler",
                                    # Samples from the posterior of a GP with Kronecker-structured covariance
                                    # using Matheron's rule.
                                    public = list(
@@ -531,17 +530,24 @@ KroneckerMatheronSampler = R6Class("KroneckerMatheronSampler",
                                          # print("shouldn't be here often")
                                          eigKt = self$eigKt
                                          eigKx = self$eigKx
+                                         eigKg = self$eigKg
+                                         eigKz = self$eigKz
                                          # And I'll store them in cache
                                          private$.cache$eigKt = eigKt
                                          private$.cache$eigKx = eigKx
+                                         private$.cache$eigKg = eigKg
+                                         private$.cache$eigKz = eigKz
                                          # And I'll store the current hypers in cache
                                          private$.cache$tau = self$data$tau
                                          private$.cache$lambda = self$data$lambda
                                          private$.cache$c = self$data$c
                                          private$.cache$ell = self$data$ell
+                                         private$.cache$gamma = self$data$gamma
                                        } else{
                                          eigKt = private$.cache$eigKt
                                          eigKx = private$.cache$eigKx
+                                         eigKg = private$.cache$eigKg
+                                         eigKz = private$.cache$eigKz
                                        }
                                        
                                        
@@ -553,21 +559,31 @@ KroneckerMatheronSampler = R6Class("KroneckerMatheronSampler",
                                            
                                            Qt = eigKt$vectors
                                            Qx = eigKx$vectors
+                                           Qg = eigKg$vectors
+                                           Qz = eigKz$vectors
                                            Dt = pmax(eigKt$values,0)
                                            Dx = pmax(eigKx$values,0)
+                                           Dg = pmax(eigKg$values,0)
+                                           Dz = pmax(eigKz$values,0)
                                            Kx = Qx%*%diag(Dx)%*%t(Qx)
                                            Kt = Qt%*%diag(Dt)%*%t(Qt)
+                                           Kg = Qg%*%diag(Dg)%*%t(Qg)
+                                           Kz = Qz%*%diag(Dz)%*%t(Qz)
                                            n = nrow(Qx)
                                            m = nrow(Qt)
                                            # Matheron's rule
                                            eta1 = matrix(rnorm(n*m),ncol=m)
                                            eta1 = sweep(eta1,1,sqrt(Dx),'*')
                                            eta1 = sweep(eta1,2,sqrt(Dt),'*')
-                                           error = sigma*matrix(rnorm(n*m),ncol=m)
                                            f1.prior = Qx%*%eta1%*%t(Qt)
-                                           eta = Y-f1.prior-error
+                                           eta2 = matrix(rnorm(n*m),ncol=m)
+                                           eta2 = sweep(eta2,1,sqrt(Dz),'*')
+                                           eta2 = sweep(eta2,2,sqrt(Dt),'*')
+                                           z1.prior = Qz%*%eta2%*%t(Qt)
+                                           error = sigma*matrix(rnorm(n*m),ncol=m)
+                                           eta = Y-f1.prior-z1.prior-error
                                            # Now compute correction, note subtraction of c^2 meaning no intercept
-                                           correction = (((Kx)%*%Qx)%*%((1/(Dx%*% t(Dt)+sigma^2))*t(Qx)%*%eta%*%Qt)%*%t(Kt%*%Qt))
+                                           correction = ((Kx%*%Qg)%*%((1/(Dg%*% t(Dt)+sigma^2))*t(Qg)%*%eta%*%Qt)%*%t(Kt%*%Qt))
                                            f1.prior + correction
                                          },
                                          error = function(e) {
@@ -615,6 +631,14 @@ KroneckerMatheronSampler = R6Class("KroneckerMatheronSampler",
                                        K = self$data$c^2 + x1%*%(t(x2)*(self$data$tau*self$data$lambda)^2)
                                        return(K+1e-9*diag(n1))
                                      },
+                                     Kg = function(){
+                                       K = self$Kx + diag(self$data$gamma^2)
+                                       return(K+1e-9*diag(length(self$data$gamma)))
+                                     },
+                                     Kz = function(){
+                                       K = diag(self$data$gamma^2)
+                                       return(K+1e-9*diag(length(self$data$gamma)))
+                                     },
                                      Kt = function(){
                                        # This implements the Matern3/2 kernel
                                        t1 = as.matrix(self$data$t)
@@ -635,11 +659,19 @@ KroneckerMatheronSampler = R6Class("KroneckerMatheronSampler",
                                      eigKx = function(){
                                        return(eigen(self$Kx,symmetric = T))
                                      },
+                                     eigKg = function(){
+                                       return(eigen(self$Kg,symmetric = T))
+                                     },
+                                     eigKz = function(){
+                                       return(eigen(self$Kz,symmetric = T))
+                                     },
                                      hypers_changed = function(){
                                        old = c(private$.cache$tau, private$.cache$lambda,
-                                               private$.cache$c, private$.cache$ell)
+                                               private$.cache$c, private$.cache$ell,
+                                               private$.cache$gamma)
                                        current = c(self$data$tau, self$data$lambda,
-                                                   self$data$c, self$data$ell)
+                                                   self$data$c, self$data$ell,
+                                                   self$data$gamma)
                                        if (!identical(old,current)){
                                          TRUE
                                        } else {
@@ -654,13 +686,170 @@ KroneckerMatheronSampler = R6Class("KroneckerMatheronSampler",
                                      .cache = list()
                                    )
 )
+#' Matheron sampler using the Kronecker structure to sample Z
+#'
+#'@keywords internal
+#'@noRd
+#'@importFrom R6 R6Class
+KroneckerMatheronSamplerZ = R6Class("KroneckerMatheronSampler",
+                                    # Samples from the posterior of a GP with Kronecker-structured covariance
+                                    # using Matheron's rule.
+                                    public = list(
+                                      N.iter = NULL,
+                                      thinning = NULL,
+                                      N.params = NULL,
+                                      # samples = NULL,
+                                      unthinned_samples = NULL,
+                                      iteration = 1,
+                                      data = NULL,
+                                      control = list(
+                                        window_counter = 0, # counting windows
+                                        reject_counter = 0 # count rejections
+                                      ),
+                                      initialize = function(N.iter = 1000, N.params = NULL,
+                                                            data = NULL, thinning = 10){
+                                        self$N.iter = N.iter
+                                        self$N.params = N.params
+                                        self$unthinned_samples = array(NA,dim=c(N.iter*thinning,N.params))
+                                        self$data = data
+                                        self$thinning = thinning
+                                        self$sample() # Init this by sampling
+                                      },
+                                      sample = function(){
+                                        # I'll create the kernels here as well and do everything
+                                        # First thing we do is check if hypers are changed
+                                        if (self$hypers_changed){
+                                          # print("shouldn't be here often")
+                                          eigKt = self$eigKt
+                                          eigKx = self$eigKx
+                                          # And I'll store them in cache
+                                          private$.cache$eigKt = eigKt
+                                          private$.cache$eigKx = eigKx
+                                          # And I'll store the current hypers in cache
+                                          private$.cache$ell = self$data$ell
+                                          private$.cache$gamma = self$data$gamma
+                                        } else{
+                                          eigKt = private$.cache$eigKt
+                                          eigKx = private$.cache$eigKx
+                                        }
+                                        
+                                        
+                                        # Try-catch here
+                                        step = tryCatch(
+                                          {
+                                            Y = self$data$Y
+                                            sigma = self$data$sigma
+                                            
+                                            Qt = eigKt$vectors
+                                            Qx = eigKx$vectors
+                                            Dt = pmax(eigKt$values,0)
+                                            Dx = pmax(eigKx$values,0)
+                                            Kx = Qx%*%diag(Dx)%*%t(Qx)
+                                            Kt = Qt%*%diag(Dt)%*%t(Qt)
+                                            n = nrow(Qx)
+                                            m = nrow(Qt)
+                                            # Matheron's rule
+                                            eta1 = matrix(rnorm(n*m),ncol=m)
+                                            eta1 = sweep(eta1,1,sqrt(Dx),'*')
+                                            eta1 = sweep(eta1,2,sqrt(Dt),'*')
+                                            error = sigma*matrix(rnorm(n*m),ncol=m)
+                                            f1.prior = Qx%*%eta1%*%t(Qt)
+                                            eta = Y-f1.prior-error
+                                            # Now compute correction, note subtraction of c^2 meaning no intercept
+                                            correction = (((Kx)%*%Qx)%*%((1/(Dx%*% t(Dt)+sigma^2))*t(Qx)%*%eta%*%Qt)%*%t(Kt%*%Qt))
+                                            f1.prior + correction
+                                          },
+                                          error = function(e) {
+                                            warning(paste0("Error in Matheron step! ", e))
+                                            # print(e)
+                                            NULL
+                                          }
+                                        )
+                                        reject = F
+                                        if (is.null(step)){
+                                          reject = T
+                                        }
+                                        if (reject){ # Reject
+                                          self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-1,,]
+                                          self$control$reject_counter = self$control$reject_counter + 1
+                                        } else{ # Accept
+                                          self$unthinned_samples[self$iteration,,] = step
+                                          self$control$reject_counter = 0
+                                        }
+                                        if (self$control$reject_counter > 5){
+                                          # Go back to a point where things worked
+                                          self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-6,,]
+                                        }
+                                        # And increase iteration
+                                        self$iteration = self$iteration + 1
+                                      },
+                                      skip = function(){
+                                        self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-1,,]
+                                        self$iteration = self$iteration + 1
+                                      }
+                                    ),
+                                    active = list(
+                                      p = function() {
+                                        as.integer(ncol(self$data$X))
+                                      },
+                                      m = function() {
+                                        as.integer(nrow(self$data$t))
+                                      },
+                                      Kx = function(){
+                                        # Implements linear kernel with inner product wrt diag(alpha)
+                                        x1 = as.matrix(self$data$X)
+                                        x2 = as.matrix(self$data$X)
+                                        n1 = nrow(x1)
+                                        n2 = nrow(x2)
+                                        K = diag(self$data$gamma^2)
+                                        return(K+1e-9*diag(n1))
+                                      },
+                                      Kt = function(){
+                                        # This implements the Matern3/2 kernel
+                                        t1 = as.matrix(self$data$t)
+                                        t2 = as.matrix(self$data$t)
+                                        n1 = nrow(t1)
+                                        n2 = nrow(t2)
+                                        K = matrix(NA,nrow=n1,ncol=n2)
+                                        for (i in 1:n1){
+                                          for (j in 1:n2){
+                                            K[i,j] = exp(-0.5*abs(t1[i,]-t2[j,])^2/self$data$ell^2)
+                                          }
+                                        }
+                                        return(K+1e-9*diag(n1))
+                                      },
+                                      eigKt = function(){
+                                        return(eigen(self$Kt,symmetric = T))
+                                      },
+                                      eigKx = function(){
+                                        return(eigen(self$Kx,symmetric = T))
+                                      },
+                                      hypers_changed = function(){
+                                        old = c(private$.cache$ell,
+                                                private$.cache$gamma)
+                                        current = c(self$data$ell,
+                                                    self$data$gamma)
+                                        if (!identical(old,current)){
+                                          TRUE
+                                        } else {
+                                          FALSE
+                                        }
+                                      },
+                                      samples = function(){
+                                        self$unthinned_samples[seq(1,dim(self$unthinned_samples)[1],by=self$thinning),,]
+                                      }
+                                    ),
+                                    private = list(
+                                      .cache = list()
+                                    )
+)
 #' Matheron sampler using the Kronecker structure to sample F with SKIM kernel
 #'
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
 KroneckerMatheronSamplerSKIM = R6Class("HMCSampler",
-                                       inherit = KroneckerMatheronSampler,
+                                       inherit = KroneckerMatheronSamplerF,
                                        active = list(
                                          Kx = function(){
                                            # Overwriting the linear kernel with SKIM
@@ -687,8 +876,8 @@ GibbsSamplerVariance = R6Class("Gibbs",
                                inherit = MCMC,
                                public = list(
                                  initialize = function(n, m,
-                                                       sigma_sq_a = 20, 
-                                                       sigma_sq_b = 1e-5,
+                                                       sigma_sq_a = 2, 
+                                                       sigma_sq_b = 0.1,
                                                        ...){
                                    super$initialize(...)
                                    self$data$n = n
@@ -766,7 +955,7 @@ MHSamplerEll = R6Class("MH",
                            # Acceptance ratio
                            log_acc = log_post_star - log_post
                            acc = min(1,exp(log_acc))
-                           print(paste0("MH acce prob: ", round(acc,4)))
+                           # print(paste0("MH acce prob: ", round(acc,4)))
                            # Do we accept
                            if (rbinom(1,1,acc)){
                              self$samples[self$iteration+1] = exp(log_ell_star)
@@ -789,7 +978,7 @@ MHSamplerEll = R6Class("MH",
                        ),
                        private = list(
                          Kt = function(ell){
-                           print(ell)
+                           # print(ell)
                            t1 = as.matrix(self$data$t)
                            t2 = as.matrix(self$data$t)
                            n1 = nrow(t1)

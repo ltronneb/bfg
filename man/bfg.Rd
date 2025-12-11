@@ -29,7 +29,7 @@ bfg(
 
 \item{thinning:}{int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)}
 
-\item{N_iter:}{number of MCMC iterations (default 2000)}
+\item{N.iter:}{number of MCMC iterations (default 2000)}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model
