@@ -13,8 +13,8 @@ sample_f_hypers <- function(X, Qt, Dt, F, gamma, tau0_prime_in, nugget_in, ell_i
     .Call(`_bfg_sample_f_hypers`, X, Qt, Dt, F, gamma, tau0_prime_in, nugget_in, ell_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global)
 }
 
-sample_z_hypers <- function(Qt, Dt, Z, nugget_in, eta, beta_a, beta_b, dir_a, q_val, mass_matrix_diag, epsilon, L) {
-    .Call(`_bfg_sample_z_hypers`, Qt, Dt, Z, nugget_in, eta, beta_a, beta_b, dir_a, q_val, mass_matrix_diag, epsilon, L)
+sample_z_hypers <- function(Qt, Dt, Z, temperature, nugget_in, eta, beta_a, beta_b, dir_a, q_val, mass_matrix_diag, epsilon, L) {
+    .Call(`_bfg_sample_z_hypers`, Qt, Dt, Z, temperature, nugget_in, eta, beta_a, beta_b, dir_a, q_val, mass_matrix_diag, epsilon, L)
 }
 
 sample_f_hypers_SKIM <- function(X, Qt, Dt, F, tau0_prime_in, nugget_in, ell_in, q_val, mass_matrix_diag, epsilon, L, slab_scale = 5.0, slab_df = 4.0, nu_local = 1L, nu_global = 1L) {

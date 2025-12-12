@@ -820,7 +820,6 @@ Rcpp::List sample_f_hypers(Eigen::MatrixXd X,  // Data
                                const int& nu_local = 1, // Hypers w/ default values
                                const int& nu_global = 1 // Hypers w/ default values
 ){
-  
   using stan::math::var;
   using Eigen::VectorXd;
   using Eigen::Matrix;
@@ -846,6 +845,7 @@ template <typename T>
 T gp_kron_logpost_1d_re(const Eigen::MatrixXd& Qt,
                         const Eigen::VectorXd& Dt,
                         const Eigen::MatrixXd& Z, // The data
+                        const double& temperature, // Likelihood temperature
                         const T& nugget, // Nugget for eigendecomps
                         const double& eta, const double& beta_a, 
                         const double& beta_b,const double& dir_a, // Hyperparameters
@@ -892,7 +892,7 @@ T gp_kron_logpost_1d_re(const Eigen::MatrixXd& Qt,
   auto log_prior_logit_u = stan::math::beta_lpdf(u, beta_a, beta_b) + log(u) + log1m(u);
   
   // Log posterior returned
-  auto logpost = loglik + log_prior_log_phi_tilde + log_prior_logit_u;
+  auto logpost = temperature*loglik + log_prior_log_phi_tilde + log_prior_logit_u;
   return logpost;
 }
 
@@ -902,6 +902,7 @@ T gp_kron_logpost_1d_re(const Eigen::MatrixXd& Qt,
 Rcpp::List sample_z_hypers(const Eigen::MatrixXd& Qt, // Eigen-decomp of K_t
                                const Eigen::VectorXd& Dt, // Eigen-decomp of K_t
                                const Eigen::MatrixXd& Z,  // Data
+                               const double& temperature,
                                double nugget_in, // Hypers
                                double eta, // Hypers
                                double beta_a, double beta_b, double dir_a,
@@ -917,7 +918,7 @@ Rcpp::List sample_z_hypers(const Eigen::MatrixXd& Qt, // Eigen-decomp of K_t
   // Set up the potential function lambda
   auto U = [&](const Eigen::Matrix<var, -1, 1> q_val, const bool first_step){
     return -gp_kron_logpost_1d_re(Qt,Dt,
-                                  Z, //Data
+                                  Z, temperature, //Data
                                   nugget, // Hypers
                                   eta, beta_a, beta_b, dir_a,
                                   q_val, // Parameters

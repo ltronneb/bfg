@@ -25,12 +25,10 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
   p = ncol(X)
   m = length(t)
   n = nrow(Y)
-  # ell0 = median(abs(outer(t,t,FUN="-")))
-  ell0 = 0.1
+  ell0 = median(abs(outer(t,t,FUN="-")))/2
+  # ell0 = 0.1
   # print(ell0)
-  sigma0 = 0.01
-  eta0 = rep(NA,N.iter)
-  eta0[1] = 1.182
+  sigma0 = 0.1
   F0 = working_Y
   Z0 = matrix(0,ncol=m,nrow=n)
   
@@ -48,17 +46,17 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
                                                            nugget = 1e-6, ell = ell0),
                                 N.iter = N.iter)
     F_sampler = KroneckerMatheronSamplerF$new(data = list(X=X,
-                                                         t=t,
-                                                         Y=working_Y,
-                                                         ell=ell0,
-                                                         c=F_hypers$c[1],
-                                                         tau = F_hypers$tau[1],
-                                                         lambda = F_hypers$lambda[1,],
-                                                         gamma = rep(1,n),
-                                                         sigma = sigma0),
-                                             N.params = c(n,m),
-                                             N.iter = F_hypers$N.iter,
-                                             thinning = thinning)
+                                                          t=t,
+                                                          Y=working_Y,
+                                                          ell=ell0,
+                                                          c=F_hypers$c[1],
+                                                          tau = F_hypers$tau[1],
+                                                          lambda = F_hypers$lambda[1,],
+                                                          gamma = rep(0,n),
+                                                          sigma = sigma0),
+                                              N.params = c(n,m),
+                                              N.iter = F_hypers$N.iter,
+                                              thinning = thinning)
   } else{
     F_hypers = HMC_samplerSKIM$new(N.params=2*p+5,data = list(X = X,
                                                               t = t, 
@@ -88,27 +86,40 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
     F_hypers$samples[1,2*p+5] = -10
   }
   
+  eta0 = rep(NA,N.iter)
+  eta0[1] = n*(F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + sigma0^2)
+  
   # Set up samplers for Z
+  # Temperature scheduler
+  temp = cbind(seq(0,floor(N.iter/2)-1)/floor(N.iter/2),rep(1,floor(N.iter/2)+2))
   Z_hypers = HMC_samplerZ$new(N.params = (n+1), data = list(X = diag(n),
                                                             t = t,
-                                                            Y = Z0,
+                                                            Y = working_Y-F_sampler$samples[1,,],
+                                                            temperature = temp,
                                                             nugget = 1e-06, ell = ell0,
                                                             eta = eta0, 
-                                                            beta_a = 1, beta_b =  1000, dir_a = 1.5),
+                                                            beta_a = 1, beta_b =  200, dir_a = 1),
                               N.iter = N.iter)
+  Z_hypers$samples[1,] = -2
+  # Z_hypers$samples[1,n+1] = -10
+  # print(Z_hypers$u[1])
+  # print(Z_hypers$gamma[1,])
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
-                                                       t=t,
-                                                       Y=working_Y,
-                                                       ell = ell0,
-                                                       gamma = Z_hypers$gamma[1,],
-                                                       sigma = sigma0),
-                                           N.params = c(n,m),
-                                           N.iter = N.iter,
-                                           thinning = thinning)
+                                                        t=t,
+                                                        Y=working_Y-F_sampler$samples[1,,],
+                                                        ell = ell0,
+                                                        gamma = Z_hypers$gamma[1,],
+                                                        sigma = sigma0),
+                                            N.params = c(n,m),
+                                            N.iter = N.iter,
+                                            thinning = thinning)
   # Sampler for variance
-  s2_sampler = GibbsSamplerVariance$new(n = n, m = m, sigma_sq_a = 2, sigma_sq_b = 0.1,
-                                        data = list(Y = working_Y, F = F_sampler$samples[1,,], 
-                                                    Z = Z_sampler$samples[1,,]))
+  # s2_sampler = GibbsSamplerVariance$new(n = n, m = m, sigma_sq_a = 2, sigma_sq_b = 0.1,
+  #                                       data = list(Y = working_Y, F = F_sampler$samples[1,,], 
+  #                                                   Z = Z_sampler$samples[1,,]))
+  s2_sampler = MHSamplerSigma$new(Y = working_Y, F = F_sampler$samples[1,,], Z = Z_sampler$samples[1,,],
+                                  s0 = sigma0,
+                                  prop_sigma = 0.005)
   # Sampler for lengthscale
   ell_sampler = MHSamplerEll$new(Y = working_Y,Kx = F_sampler$Kx, Kz = Z_sampler$Kx, ell0 = ell0, 
                                  t = data_generated$T, s2 = s2_sampler$samples[1],
@@ -137,8 +148,8 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
     # # Sample F_hypers
     F_hypers$sample()
     # # Sample Z_hypers
-    eta = n*(F_hypers$c[i]^2 + sum((F_hypers$tau[i]*F_hypers$lambda[i,])^2) + s2_sampler$samples[i-1])
-    print(paste0("eta: ",eta))
+    eta = n*(F_hypers$c[i]^2 + sum((F_hypers$tau[i]*F_hypers$lambda[i,])^2) + s2_sampler$samples[i-1]^2)
+    # print(paste0("eta: ",eta))
     Z_hypers$data$eta[i] = eta
     # print(Z_hypers$data$eta[1:i])
     Z_hypers$data$Y = Z_sampler$samples[i-1,,]
@@ -165,8 +176,16 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
     # print(F_sampler$data$gamma)
     Z_sampler$data$gamma = Z_hypers$gamma[i,]
     for (k in 0:(thinning-1)){
+      # print(F_sampler$unthinned_samples[F_sampler$iteration-1,1,])
       Z_sampler$data$Y = working_Y - F_sampler$unthinned_samples[F_sampler$iteration-1,,]
+      # Don't update these yet
+      # if (i < 25){
+      # Z_sampler$unthinned_samples[Z_sampler$iteration,,] =  Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
+      # Z_sampler$iteration = Z_sampler$iteration + 1
+      # } else{
       Z_sampler$sample()
+      # }
+      
       
       # Sum-to-zero correction here # TRY TURNING THIS OFF!
       B = diag(n) - 1/n*rep(1,n)%*%t(rep(1,n))
@@ -194,14 +213,14 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
     s2_sampler$sample()
     # s2_sampler$samples[i] = 0.1231101^2
     # Update hypers in other samplers
-    F_sampler$data$sigma = sqrt(s2_sampler$samples[i])
-    Z_sampler$data$sigma = sqrt(s2_sampler$samples[i])
+    F_sampler$data$sigma = sqrt(s2_sampler$samples[i]^2)
+    Z_sampler$data$sigma = sqrt(s2_sampler$samples[i]^2)
     ############################################################################
     ############### SAMPLING lengthscale #######################################
     ############################################################################
     ell_sampler$data$Kx = F_sampler$Kx
     ell_sampler$data$Kz = Z_sampler$Kx
-    ell_sampler$data$s2 = s2_sampler$samples[i]
+    ell_sampler$data$s2 = s2_sampler$samples[i]^2
     ell_sampler$data$Y = working_Y
     ell_sampler$sample()
     # Update hypers in other samplers
@@ -211,7 +230,7 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
     Z_sampler$data$ell = ell_sampler$ell[i]
     
     # print(Z_hypers$gamma[i,])
-      
+    
     ## PLOTTING
     if (plotting){
       idx = 11
@@ -258,7 +277,7 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
                        data_generated=data_generated,
                        interactions=interactions,thinning=thinning,
                        N.iter=N.iter, plotting=plotting)
-           )
+  )
   return(L)
 }
 

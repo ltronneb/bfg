@@ -57,14 +57,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // sample_z_hypers
-Rcpp::List sample_z_hypers(const Eigen::MatrixXd& Qt, const Eigen::VectorXd& Dt, const Eigen::MatrixXd& Z, double nugget_in, double eta, double beta_a, double beta_b, double dir_a, const Eigen::VectorXd& q_val, const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L);
-RcppExport SEXP _bfg_sample_z_hypers(SEXP QtSEXP, SEXP DtSEXP, SEXP ZSEXP, SEXP nugget_inSEXP, SEXP etaSEXP, SEXP beta_aSEXP, SEXP beta_bSEXP, SEXP dir_aSEXP, SEXP q_valSEXP, SEXP mass_matrix_diagSEXP, SEXP epsilonSEXP, SEXP LSEXP) {
+Rcpp::List sample_z_hypers(const Eigen::MatrixXd& Qt, const Eigen::VectorXd& Dt, const Eigen::MatrixXd& Z, const double& temperature, double nugget_in, double eta, double beta_a, double beta_b, double dir_a, const Eigen::VectorXd& q_val, const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L);
+RcppExport SEXP _bfg_sample_z_hypers(SEXP QtSEXP, SEXP DtSEXP, SEXP ZSEXP, SEXP temperatureSEXP, SEXP nugget_inSEXP, SEXP etaSEXP, SEXP beta_aSEXP, SEXP beta_bSEXP, SEXP dir_aSEXP, SEXP q_valSEXP, SEXP mass_matrix_diagSEXP, SEXP epsilonSEXP, SEXP LSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Qt(QtSEXP);
     Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Dt(DtSEXP);
     Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const double& >::type temperature(temperatureSEXP);
     Rcpp::traits::input_parameter< double >::type nugget_in(nugget_inSEXP);
     Rcpp::traits::input_parameter< double >::type eta(etaSEXP);
     Rcpp::traits::input_parameter< double >::type beta_a(beta_aSEXP);
@@ -74,7 +75,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type mass_matrix_diag(mass_matrix_diagSEXP);
     Rcpp::traits::input_parameter< double >::type epsilon(epsilonSEXP);
     Rcpp::traits::input_parameter< int >::type L(LSEXP);
-    rcpp_result_gen = Rcpp::wrap(sample_z_hypers(Qt, Dt, Z, nugget_in, eta, beta_a, beta_b, dir_a, q_val, mass_matrix_diag, epsilon, L));
+    rcpp_result_gen = Rcpp::wrap(sample_z_hypers(Qt, Dt, Z, temperature, nugget_in, eta, beta_a, beta_b, dir_a, q_val, mass_matrix_diag, epsilon, L));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -108,7 +109,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bfg_clear_cache", (DL_FUNC) &_bfg_clear_cache, 0},
     {"_bfg_prepare_cache", (DL_FUNC) &_bfg_prepare_cache, 1},
     {"_bfg_sample_f_hypers", (DL_FUNC) &_bfg_sample_f_hypers, 16},
-    {"_bfg_sample_z_hypers", (DL_FUNC) &_bfg_sample_z_hypers, 12},
+    {"_bfg_sample_z_hypers", (DL_FUNC) &_bfg_sample_z_hypers, 13},
     {"_bfg_sample_f_hypers_SKIM", (DL_FUNC) &_bfg_sample_f_hypers_SKIM, 15},
     {NULL, NULL, 0}
 };
