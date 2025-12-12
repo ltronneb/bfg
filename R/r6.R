@@ -91,7 +91,7 @@ HMC = R6Class(
       # And check that the number of iterations is larger than warmup
       if (self$N.iter < self$control$warmup){
         print(paste0("N.iter must be larger than ", self$control$warmup))
-        break
+        stop()
       }
       
       if (self$control$adapt){
@@ -118,7 +118,7 @@ HMC = R6Class(
     },
     sample = function(){
       print("Not implemented, must be implemented in inhereted subclass")
-      break
+      stop()
     }
   ),
   active = list(
