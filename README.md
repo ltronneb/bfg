@@ -2,7 +2,7 @@
 
 An R package for high-dimensional function-on-scalar regression for large $p$ using a multi-output Gaussian Process formulation
 
-[![R-CMD-check.yaml](https://github.com/ltronneb/bfg/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/ltronneb/bfg/actions/workflows/R-CMD-check.yaml)
+[![R-CMD-check](https://github.com/ltronneb/bfg/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/ltronneb/bfg/actions/workflows/R-CMD-check.yaml)
 
 More text here explaining things...
 
