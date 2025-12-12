@@ -55,6 +55,7 @@ void clear_cache() {
 
 // [[Rcpp::export]]
 void prepare_cache(Rcpp::NumericMatrix X) {
+  using Rcpp::as;
   Eigen::MatrixXd X_eigen = as<Eigen::MatrixXd>(X);
   get_cache().initialize(X_eigen);
 }
