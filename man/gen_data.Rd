@@ -7,21 +7,21 @@
 gen_data(n, m, p, p0, RSNR, ell, rho, re = T)
 }
 \arguments{
-\item{n:}{number of observations}
+\item{n}{: number of observations}
 
-\item{m:}{number of timepoints}
+\item{m}{: number of timepoints}
 
-\item{p:}{number of covariates}
+\item{p}{: number of covariates}
 
-\item{p0:}{number of true non-zero covariates}
+\item{p0}{: number of true non-zero covariates}
 
-\item{RSNR:}{root-signal-to-noise-ratio}
+\item{RSNR}{: root-signal-to-noise-ratio}
 
-\item{ell:}{length-scale controlling smoothness in time}
+\item{ell}{: length-scale controlling smoothness in time}
 
-\item{rho:}{correlation between covariates x_i, x_j}
+\item{rho}{: correlation between covariates x_i, x_j}
 
-\item{re:}{bool (simulate with random effects, default=T)}
+\item{re}{: bool (simulate with random effects, default=T)}
 }
 \description{
 This function generates simulated data for function-on-scalar regression

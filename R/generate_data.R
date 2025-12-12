@@ -3,14 +3,14 @@
 #' This function generates simulated data for function-on-scalar regression
 #' 
 #' 
-#'@param n: number of observations
-#'@param m: number of timepoints
-#'@param p: number of covariates
-#'@param p0: number of true non-zero covariates
-#'@param RSNR: root-signal-to-noise-ratio
-#'@param ell: length-scale controlling smoothness in time
-#'@param rho: correlation between covariates x_i, x_j
-#'@param re: bool (simulate with random effects, default=T)
+#'@param n : number of observations
+#'@param m : number of timepoints
+#'@param p : number of covariates
+#'@param p0 : number of true non-zero covariates
+#'@param RSNR : root-signal-to-noise-ratio
+#'@param ell : length-scale controlling smoothness in time
+#'@param rho : correlation between covariates x_i, x_j
+#'@param re : bool (simulate with random effects, default=T)
 #'
 #'@export
 gen_data = function(n,m,p,p0,RSNR,ell,rho,re=T){

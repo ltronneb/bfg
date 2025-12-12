@@ -1,12 +1,14 @@
 #' Main function for fitting a function-on-scalar regression using the BFG model
 #'
-#'@param y: n x m matrix with observations
-#'@param X: n x p design matrix
-#'@param t: m vector of inputs
-#'@param tau0_prime: scaling factor for the global horseshoe parameter
-#'@param interactions: bool, estimate model with interactions? (default F)
-#'@param thinning: int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)
-#'@param N.iter: number of MCMC iterations (default 2000)
+#'@param Y : n x m matrix with observations
+#'@param X : n x p design matrix
+#'@param t : m vector of inputs
+#'@param tau0_prime : scaling factor for the global horseshoe parameter
+#'@param data_generated : list returned by gen_data, for plotting simulations
+#'@param interactions : bool, estimate model with interactions? (default F)
+#'@param thinning : int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)
+#'@param N.iter : number of MCMC iterations (default 2000)
+#'@param plotting : bool, plot fitted curves and variable selection on the fly?
 #'
 #'@export
 bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=2000, plotting=F){

@@ -17,19 +17,23 @@ bfg(
 )
 }
 \arguments{
-\item{y:}{n x m matrix with observations}
+\item{Y}{: n x m matrix with observations}
 
-\item{X:}{n x p design matrix}
+\item{X}{: n x p design matrix}
 
-\item{t:}{m vector of inputs}
+\item{t}{: m vector of inputs}
 
-\item{tau0_prime:}{scaling factor for the global horseshoe parameter}
+\item{tau0_prime}{: scaling factor for the global horseshoe parameter}
 
-\item{interactions:}{bool, estimate model with interactions? (default F)}
+\item{data_generated}{: list returned by gen_data, for plotting simulations}
 
-\item{thinning:}{int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)}
+\item{interactions}{: bool, estimate model with interactions? (default F)}
 
-\item{N.iter:}{number of MCMC iterations (default 2000)}
+\item{thinning}{: int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)}
+
+\item{N.iter}{: number of MCMC iterations (default 2000)}
+
+\item{plotting}{: bool, plot fitted curves and variable selection on the fly?}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model
