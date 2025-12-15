@@ -3,7 +3,7 @@
 #'@param Y : n x m matrix with observations
 #'@param X : n x p design matrix
 #'@param t : m vector of inputs
-#'@param tau0_prime : scaling factor for the global horseshoe parameter
+#'@param tau0_prime0 : scaling factor for the global horseshoe parameter
 #'@param data_generated : list returned by gen_data, for plotting simulations
 #'@param interactions : bool, estimate model with interactions? (default F)
 #'@param thinning : int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)
