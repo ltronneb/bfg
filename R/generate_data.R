@@ -105,8 +105,16 @@ kern_x = function(x1,x2,alpha,c,gamma){
 #' @noRd
 #' @importFrom  MASS mvrnorm
 generate_X = function(n,p,rho){
-  S = outer(1:p,1:p,function(i,j) rho^abs(i-j))
-  X = mvrnorm(n,mu=rep(0,p),Sigma=S)
+  # This is Toeplitz, can be sped up using AR(1) representation
+  # \epsilon_{i,1} ~ N(0,1), 
+  # X = \epsilon
+  # X_{i,j} = \rho X_{i,j-1} + \sqrt{1-\rho^2}\epsilon_{i,j} 
+  Z = matrix(rnorm(n*p), n, p)
+  X = Z
+  s = sqrt(1 - rho^2)
+  for (j in 2:p){
+    X[, j] = rho*X[,(j-1)] + s* Z[,j]
+  }
   return(scale(X))
 }
 
