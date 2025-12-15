@@ -77,6 +77,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
                                                              tau1 = F_hypers$tau[1],
                                                              tau2 = F_hypers$tau2[1],
                                                              lambda = F_hypers$lambda[1,],
+                                                             gamma = rep(0,n),
                                                              sigma = sigma0),
                                                  N.params = c(n,m),
                                                  N.iter = F_hypers$N.iter,
@@ -96,14 +97,15 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
   
   # Set up samplers for Z
   # Temperature scheduler
-  temp = c(seq(0,floor(N.iter/2)-1)/floor(N.iter/2),rep(1,floor(N.iter/2)+2))
+  # temp = c(seq(0,floor(N.iter/2)-1)/floor(N.iter/2),rep(1,floor(N.iter/2)+2))
+  temp = c(pmin(1,0.0+(1-0.0)*seq(0,1,length.out=1000)^2),rep(1,floor(N.iter/2)+2))
   Z_hypers = HMC_samplerZ$new(N.params = (n+1), data = list(X = diag(n),
                                                             t = t,
                                                             Y = working_Y-F_sampler$samples[1,,],
                                                             temperature = temp,
                                                             nugget = 1e-06, ell = ell0,
                                                             eta = eta0, 
-                                                            beta_a = 1, beta_b =  200, dir_a = 1),
+                                                            beta_a = 2, beta_b =  50, dir_a = 1),
                               N.iter = N.iter)
   Z_hypers$samples[1,] = -2
   # Z_hypers$samples[1,n+1] = -10
@@ -130,6 +132,17 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
                                  t = data_generated$T, s2 = s2_sampler$samples[1],
                                  prop_sigma = 0.005)
   
+  
+  # Now return the samplers and create an S4 object
+  L = list(samplers = list(F_sampler=F_sampler, F_hypers=F_hypers,
+                           Z_sampler=Z_sampler, Z_hypers=Z_hypers,
+                           ell_sampler=ell_sampler,s2_sampler=s2_sampler),
+           data = list(Y=Y,X=X,t=t,tau0_prime=tau0_prime,
+                       data_generated=data_generated,
+                       interactions=interactions,thinning=thinning,
+                       N.iter=N.iter, plotting=plotting)
+  )
+  on.exit(return(L))
   
   # Now sampling starts
   for (i in 2:N.iter){
@@ -274,17 +287,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
     # readline(prompt="Press [enter] to continue")
     
   }
-  
-  # Now return the samplers and create an S4 object
-  L = list(samplers = list(F_sampler=F_sampler, F_hypers=F_hypers,
-                           Z_sampler=Z_sampler, Z_hypers=Z_hypers,
-                           ell_sampler=ell_sampler,s2_sampler=s2_sampler),
-           data = list(Y=Y,X=X,t=t,tau0_prime=tau0_prime,
-                       data_generated=data_generated,
-                       interactions=interactions,thinning=thinning,
-                       N.iter=N.iter, plotting=plotting)
-  )
-  return(L)
+
 }
 
 

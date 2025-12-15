@@ -437,7 +437,7 @@ HMC_samplerSKIM = R6Class("HMCSampler",
                               step = tryCatch(
                                 sample_f_hypers_SKIM(self$data$X, Qt, Dt, 
                                                      self$data$Y,
-                                                     self$data$tau0_prime,
+                                                     self$data$tau0_prime[self$iteration],
                                                      self$data$nugget, self$data$ell, 
                                                      self$samples[self$iteration,], 
                                                      self$control$mass_matrix, 
