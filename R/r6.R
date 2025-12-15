@@ -223,7 +223,7 @@ HMC_samplerF = R6Class("HMCSampler",
                            step = tryCatch(
                              sample_f_hypers(self$data$X, Qt, Dt, 
                                              self$data$Y,self$data$gamma,
-                                             self$data$tau0_prime,
+                                             self$data$tau0_prime[self$iteration],
                                              self$data$nugget, self$data$ell, 
                                              self$samples[self$iteration,], 
                                              self$control$mass_matrix, 
@@ -634,7 +634,7 @@ KroneckerMatheronSamplerF = R6Class("KroneckerMatheronSampler",
                                       },
                                       Kg = function(){
                                         K = self$Kx + diag(self$data$gamma^2)
-                                        return(K+1e-9*diag(length(self$data$gamma)))
+                                        return(K)
                                       },
                                       Kz = function(){
                                         K = diag(self$data$gamma^2)
@@ -868,35 +868,6 @@ KroneckerMatheronSamplerSKIM = R6Class("HMCSampler",
                                          }
                                        )
 )
-#' Gibbs sampler for variance
-#'
-#'@keywords internal
-#'@noRd
-#'@importFrom R6 R6Class
-GibbsSamplerVariance = R6Class("Gibbs",
-                               inherit = MCMC,
-                               public = list(
-                                 initialize = function(n, m,
-                                                       sigma_sq_a = 2, 
-                                                       sigma_sq_b = 0.1,
-                                                       ...){
-                                   super$initialize(...)
-                                   self$data$n = n
-                                   self$data$m = m
-                                   self$data$sigma_sq_a = sigma_sq_a
-                                   self$data$sigma_sq_b = sigma_sq_b
-                                   self$sample()
-                                 },
-                                 sample = function(){
-                                   S = sum((self$data$Y - (self$data$F + self$data$Z))^2)
-                                   self$samples[self$iteration] = 1/rgamma(1,
-                                                                           shape = self$data$sigma_sq_a + self$data$n*self$data$m/2,
-                                                                           rate = self$data$sigma_sq_b + S/2)
-                                   # And increase iteration
-                                   self$iteration = self$iteration + 1
-                                 }
-                               )
-)
 #' Metropolis-Hastings sampler for length scale
 #'
 #'@keywords internal
@@ -955,10 +926,10 @@ MHSamplerEll = R6Class("MH",
                            log_post_star = -0.5*(log_det_star + inv_solve_star) + prior_star
                            # Acceptance ratio
                            log_acc = log_post_star - log_post
-                           acc = min(1,exp(log_acc))
-                           # print(paste0("MH acce prob: ", round(acc,4)))
+                           acc_ratio = min(1,exp(log_acc))
+                           acc = rbinom(1,1,acc_ratio)
                            # Do we accept
-                           if (rbinom(1,1,acc)){
+                           if (acc){
                              self$samples[self$iteration+1] = exp(log_ell_star)
                            } else {
                              self$samples[self$iteration+1] = self$samples[self$iteration]
@@ -1007,6 +978,8 @@ MHSamplerSigma = R6Class("MH",
                          inherit = MCMC,
                          public = list(
                            initialize = function(Y, F, Z, s0,
+                                                 sigma_sq_a = 2,
+                                                 sigma_sq_b = 0.1,
                                                  prop_sigma = 0.05,
                                                  target_rate = 0.44, ...){
                              super$initialize(...)
@@ -1014,6 +987,8 @@ MHSamplerSigma = R6Class("MH",
                              self$data$prop_sigma = prop_sigma
                              self$data$F = F
                              self$data$Z = Z
+                             self$data$sigma_sq_a = sigma_sq_a
+                             self$data$sigma_sq_b = sigma_sq_b
                              self$samples[1] = s0
                              # self$iteration = self$iteration
                              self$data$target_rate = target_rate
@@ -1023,11 +998,13 @@ MHSamplerSigma = R6Class("MH",
                              log_sigma = log(self$sigma[self$iteration])
                              log_sigma_star = log_sigma + rnorm(1,mean=0,sd=self$data$prop_sigma)
                              # MH ratio
-                             log_acc = -(prod(dim(self$data$Y))+2*2)*(log_sigma_star - log_sigma) - (0.5*self$S+0.1)*(exp(-2*log_sigma_star)-exp(-2*log_sigma))
-                             acc = min(1,exp(log_acc))
+                             log_acc = -(prod(dim(self$data$Y))+2*self$data$sigma_sq_a)*(log_sigma_star - log_sigma) -
+                               (0.5*self$S+self$data$sigma_sq_b)*(exp(-2*log_sigma_star)-exp(-2*log_sigma))
+                             acc_ratio = min(1,exp(log_acc))
+                             acc = rbinom(1,1,acc_ratio)
                              # print(paste0("MH acce prob: ", round(acc,4)))
                              # Do we accept
-                             if (rbinom(1,1,acc)){
+                             if (acc){
                                self$samples[self$iteration+1] = exp(log_sigma_star)
                              } else {
                                self$samples[self$iteration+1] = self$samples[self$iteration]

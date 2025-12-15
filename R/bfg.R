@@ -11,7 +11,7 @@
 #'@param plotting : bool, plot fitted curves and variable selection on the fly?
 #'
 #'@export
-bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=2000, plotting=F){
+bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter=2000, plotting=F){
   # TODO check inputs are correctly formatted and dimensioned
   X = as.matrix(X)
   Y = as.matrix(Y)
@@ -39,6 +39,9 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
   # Set up cache
   clear_cache()
   prepare_cache(X)
+  # Set up tau_prime
+  tau0_prime = rep(NA,N.iter)
+  tau0_prime[1:2] = tau0_prime0*sigma0
   # Set up samplers for F
   if (!interactions){
     F_hypers = HMC_samplerF$new(N.params=2*p+4,data = list(X = X,
@@ -93,7 +96,7 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
   
   # Set up samplers for Z
   # Temperature scheduler
-  temp = cbind(seq(0,floor(N.iter/2)-1)/floor(N.iter/2),rep(1,floor(N.iter/2)+2))
+  temp = c(seq(0,floor(N.iter/2)-1)/floor(N.iter/2),rep(1,floor(N.iter/2)+2))
   Z_hypers = HMC_samplerZ$new(N.params = (n+1), data = list(X = diag(n),
                                                             t = t,
                                                             Y = working_Y-F_sampler$samples[1,,],
@@ -215,6 +218,7 @@ bfg = function(Y,X,t,tau0_prime,data_generated,interactions=F,thinning=1,N.iter=
     s2_sampler$sample()
     # s2_sampler$samples[i] = 0.1231101^2
     # Update hypers in other samplers
+    F_hypers$data$tau0_prime[i+1] = tau0_prime0*sqrt(s2_sampler$samples[i]^2)
     F_sampler$data$sigma = sqrt(s2_sampler$samples[i]^2)
     Z_sampler$data$sigma = sqrt(s2_sampler$samples[i]^2)
     ############################################################################

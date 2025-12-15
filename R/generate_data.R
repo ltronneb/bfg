@@ -61,7 +61,7 @@ gen_data = function(n,m,p,p0,RSNR,ell,rho,re=T){
 
   
   return(list(N=n,M=m,p=p,Y=Y,X=X,T=tvec,t_list=t_list,
-              tau0_prime = m*(p0/p)*(s/sqrt(n)),B=B,B0 = B0,Z=Z,sigma=s,
+              tau0_prime = m*(p0/p)*(1/sqrt(n)),B=B,B0 = B0,Z=Z,sigma=s,
               F.true = F.true))
   
 }
