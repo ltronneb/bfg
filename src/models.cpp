@@ -80,13 +80,21 @@ struct XLXtWorker : public RcppParallel::Worker {
       partial_data(shared_buffer), partial(partial_data.data(), n, n) {}
   
   inline void operator()(std::size_t begin, std::size_t end) {
-    for (int i = 0; i < n; ++i){
-      for (int j = 0; j <= i; ++j){
-        double sum = 0.0;
-        for (size_t k = begin; k < end; ++k){
-          sum += lambda[k] * X(i, k) * X(j, k);
+    const int block = 64;  // tweak for your CPU cache size
+    for (int kk = begin; kk < end; kk += block) {
+      int kmax = std::min<int>(kk + block, end);
+      
+      double* pdata = partial_data.data();
+      for (int i = 0; i < n; ++i){
+        for (int j = 0; j <= i; ++j){
+          double sum = 0.0;
+          size_t idx = i + j * n;
+          for (size_t k = begin; k < end; ++k){
+            sum += lambda[k] * X(i, k) * X(j, k);
+          }
+          // partial(i,j) += sum;
+          pdata[idx] += sum;
         }
-        partial(i,j) += sum;
       }
     }
   }
@@ -807,19 +815,19 @@ T gp_kron_logpost_1d_horseshoe(// Data
 // Function to sample hyperparameters of F (minus the lengthscale)
 // [[Rcpp::export]]
 Rcpp::List sample_f_hypers(Eigen::MatrixXd X,  // Data
-                               const Eigen::MatrixXd& Qt,
-                               const Eigen::VectorXd& Dt,
-                               const Eigen::MatrixXd& F,  // Data
-                               const Eigen::VectorXd& gamma,
-                               double tau0_prime_in,  // Hypers
-                               double nugget_in, // Hypers
-                               double ell_in, // Hypers
-                               const Eigen::VectorXd& q_val, // Parameters
-                               const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, // Hypers
-                               const double& slab_scale = 5.0, // Hypers w/ default values
-                               const double& slab_df = 4.0, // Hypers w/ default values
-                               const int& nu_local = 1, // Hypers w/ default values
-                               const int& nu_global = 1 // Hypers w/ default values
+                           const Eigen::MatrixXd& Qt,
+                           const Eigen::VectorXd& Dt,
+                           const Eigen::MatrixXd& F,  // Data
+                           const Eigen::VectorXd& gamma,
+                           double tau0_prime_in,  // Hypers
+                           double nugget_in, // Hypers
+                           double ell_in, // Hypers
+                           const Eigen::VectorXd& q_val, // Parameters
+                           const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, // Hypers
+                           const double& slab_scale = 5.0, // Hypers w/ default values
+                           const double& slab_df = 4.0, // Hypers w/ default values
+                           const int& nu_local = 1, // Hypers w/ default values
+                           const int& nu_global = 1 // Hypers w/ default values
 ){
   using stan::math::var;
   using Eigen::VectorXd;
@@ -831,10 +839,10 @@ Rcpp::List sample_f_hypers(Eigen::MatrixXd X,  // Data
   // Set up the potential function lambda
   auto U = [&](const Eigen::Matrix<var, -1, 1> q_val, const bool first_step){
     return -gp_kron_logpost_1d_horseshoe(X, Qt, Dt, F, gamma, //Data
-                                             slab_scale, slab_df, nu_local, // Hypers
-                                             nu_global, tau0_prime, nugget, ell, // Hypers
-                                             q_val, // Parameters
-                                             first_step
+                                         slab_scale, slab_df, nu_local, // Hypers
+                                         nu_global, tau0_prime, nugget, ell, // Hypers
+                                         q_val, // Parameters
+                                         first_step
     );
   };
   
@@ -901,14 +909,14 @@ T gp_kron_logpost_1d_re(const Eigen::MatrixXd& Qt,
 // Function to sample hyperparameters of Z (minus the lengthscale)
 // [[Rcpp::export]]
 Rcpp::List sample_z_hypers(const Eigen::MatrixXd& Qt, // Eigen-decomp of K_t
-                               const Eigen::VectorXd& Dt, // Eigen-decomp of K_t
-                               const Eigen::MatrixXd& Z,  // Data
-                               const double& temperature,
-                               double nugget_in, // Hypers
-                               double eta, // Hypers
-                               double beta_a, double beta_b, double dir_a,
-                               const Eigen::VectorXd& q_val, // Parameters
-                               const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L
+                           const Eigen::VectorXd& Dt, // Eigen-decomp of K_t
+                           const Eigen::MatrixXd& Z,  // Data
+                           const double& temperature,
+                           double nugget_in, // Hypers
+                           double eta, // Hypers
+                           double beta_a, double beta_b, double dir_a,
+                           const Eigen::VectorXd& q_val, // Parameters
+                           const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L
 ){
   
   using stan::math::var;
