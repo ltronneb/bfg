@@ -105,7 +105,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
                                                             temperature = temp,
                                                             nugget = 1e-06, ell = ell0,
                                                             eta = eta0, 
-                                                            beta_a = 2, beta_b =  50, dir_a = 1),
+                                                            beta_a = 1, beta_b =  60, dir_a = 1),
                               N.iter = N.iter)
   Z_hypers$samples[1,] = -2
   # Z_hypers$samples[1,n+1] = -10
