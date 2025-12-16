@@ -15,13 +15,14 @@ thread_local std::vector<double> thread_local_buffer;
 ///////////////////////////  Fast XLXT  //////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
-// Derivative cache!
+// Cache!
 struct XCache {
   bool initialized = false;
   int n, p;
   std::vector<double> deriv_data;
   Rcpp::NumericMatrix X_rcpp;
   Rcpp::NumericMatrix X_sq_rcpp;
+  // Eigen::MatrixXd X_aug; // This doesn't work!
   
   void initialize(const Eigen::MatrixXd& X){
     n = X.rows();
@@ -31,6 +32,10 @@ struct XCache {
     X_sq_rcpp = Rcpp::NumericMatrix(n,p);
     std::copy(X.data(), X.data() + X.size(), X_rcpp.begin());
     std::copy(X_sq.data(), X_sq.data() + X_sq.size(), X_sq_rcpp.begin());
+    // Matrix needed for low-rank stuff
+    // X_aug.resize(n,p+1);
+    // X_aug.col(0).setOnes();
+    // X_aug.block(0,1,n,p) = X;
     initialized = true;
   }
   
@@ -81,19 +86,27 @@ struct XLXtWorker : public RcppParallel::Worker {
   
   inline void operator()(std::size_t begin, std::size_t end) {
     const int block = 64;  // tweak for your CPU cache size
+    const double* __restrict__ lam = lambda.begin();
+    const double* __restrict__ Xptr = X.begin();
+    double* __restrict__ pdata = partial_data.data();
     for (int kk = begin; kk < end; kk += block) {
       int kmax = std::min<int>(kk + block, end);
       
-      double* pdata = partial_data.data();
+      // double* pdata = partial_data.data();
       for (int i = 0; i < n; ++i){
         for (int j = 0; j <= i; ++j){
           double sum = 0.0;
-          size_t idx = i + j * n;
-          for (size_t k = begin; k < end; ++k){
-            sum += lambda[k] * X(i, k) * X(j, k);
+          
+          #pragma GCC ivdep
+          // for (size_t k = begin; k < end; ++k){
+          for (size_t k = kk; k < kmax; ++k){
+            // sum += lambda[k] * X(i, k) * X(j, k);
+            sum += lam[k] * Xptr[i + k*n] * Xptr[j + k*n];
           }
-          // partial(i,j) += sum;
+          size_t idx = i + j * n;
           pdata[idx] += sum;
+          if (i != j) pdata[j + i*n] += sum;
+          // partial(i,j) += sum;
         }
       }
     }
@@ -104,13 +117,13 @@ struct XLXtWorker : public RcppParallel::Worker {
       partial_data[i] += rhs.partial_data[i];
   }
   
-  void finalize(){
-    for (int i = 0; i < n; ++i) {
-      for (int k = 0; k < i; ++k) {
-        partial(k, i) = partial(i, k);
-      }
-    }
-  }
+  // void finalize(){
+  //   for (int i = 0; i < n; ++i) {
+  //     for (int k = 0; k < i; ++k) {
+  //       partial(k, i) = partial(i, k);
+  //     }
+  //   }
+  // }
 };
 
 
@@ -130,7 +143,7 @@ Eigen::MatrixXd compute_XLambdaXt_core(const Rcpp::NumericMatrix& X,
   
   XLXtWorker worker(X, lambda_rcpp, thread_local_buffer);
   parallelReduce(0, X.ncol(), worker, 10);
-  worker.finalize();  // Symmetrize
+  // worker.finalize();  // Symmetrize
   // Convert result back
   Eigen::Map<Eigen::MatrixXd> result(worker.partial_data.data(), X.nrow(), X.nrow());
   return result;
@@ -309,8 +322,8 @@ struct LowRankLLT : LLTBase {
   explicit LowRankLLT(const Eigen::MatrixXd& X_in,
                       const Eigen::VectorXd& diag,
                       double c_sq,
-                      double eps_in = 1e-4,
-                      double threshold_in = 1e-6)
+                      double eps_in = 1e-6,
+                      double threshold_in = 1e-4)
     : X_full(X_in), eps(eps_in), threshold(threshold_in)
   {
     r = X_full.cols(); // should be p + 1
@@ -336,7 +349,7 @@ struct LowRankLLT : LLTBase {
     // select active columns
     active_idx.clear();
     for (int j = 0; j < diag_full.size(); ++j){
-      if (diag_full(j) > threshold * eps) active_idx.push_back(j);
+      if (diag_full(j) > threshold) active_idx.push_back(j);
     }
     
     int r_active = active_idx.size();
@@ -424,29 +437,34 @@ stan::math::var gp_1dloglik_analyticgrad(const Eigen::MatrixXd& X,
   const auto& cache = get_cache();
   if (!cache.initialized) Rcpp::stop("Cache not initialized.");
   // Compute kernel matrix
-  
+  // ------------ ALL BELOW UNCOMMENT FOR NORMAL VERSION---------------
+  // ------------------------------------------------------------------
   // Ill just compare my solves to a full just to check
   Eigen::MatrixXd K_val = compute_XLambdaXt_core(cache.X_rcpp, diag);
   K_val.array() += c * c;
-  K_val.diagonal().array() += gamma.array().square();
   K_val.diagonal().array() += 1e-6;
   // Eigen::LLT<Eigen::MatrixXd> llt_full(K_val);
-  
-  
+
+
   // Logic for low-rank adaptation -- turned off for now
   static std::unique_ptr<LLTBase> llt; // This is static, so persists
   llt = std::make_unique<FullLLT>(K_val);
+  // ------------------------------------------------------------------
+  // ------------------------------------------------------------------
   
   
-  // Commented this out, low-rank adaptation didn't play nice with HMC 
+  // -------- ALL BELOW UNCOMMENT FOR LOWRANK ADAPTIVE VERSION---------
+  // ------------------------------------------------------------------
+  // // Commented this out, low-rank adaptation didn't play nice with HMC 
+  // static std::unique_ptr<LLTBase> llt; // This is static, so persists
   // if (first_step){ // Then we init
-  //   int r_active = (diag.array() > 1e-4*1e-6).count() + 1;
+  //   int r_active = (diag.array() > 1e-4).count() + 1;
   // 
   //   if (n < r_active){ // Construct matrix and take a full Cholesky
   //     Rcpp::Rcout << "full_rank:" << r_active << std::endl;
   //     Eigen::MatrixXd K_val = compute_XLambdaXt_core(cache.X_rcpp, diag);
   //     K_val.array() += c * c;
-  //     K_val.diagonal().array() += 1e-4;
+  //     K_val.diagonal().array() += 1e-6;
   //     llt = std::make_unique<FullLLT>(K_val);
   //   } else{ // Work with the low-rank version
   //     Rcpp::Rcout << "low_rank:" << r_active << std::endl;
@@ -459,10 +477,12 @@ stan::math::var gp_1dloglik_analyticgrad(const Eigen::MatrixXd& X,
   //   } else { // Reinit the full thing
   //     Eigen::MatrixXd K_val = compute_XLambdaXt_core(cache.X_rcpp, diag);
   //     K_val.array() += c * c;
-  //     K_val.diagonal().array() += 1e-4;
+  //     K_val.diagonal().array() += 1e-6;
   //     llt = std::make_unique<FullLLT>(K_val);
   //   }
   // }
+  // ------------------------------------------------------------------
+  // ------------------------------------------------------------------
   
   // Eigen::LLT<Eigen::MatrixXd> llt(K_val);
   ////////////////////////////////////////////////
