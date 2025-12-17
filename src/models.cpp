@@ -72,45 +72,47 @@ void prepare_cache(Rcpp::NumericMatrix X) {
 // Worker and parallel stuff!
 struct XLXtWorker : public RcppParallel::Worker {
   const RcppParallel::RMatrix<double> X;
-  const RcppParallel::RVector<double> lambda;
+  // const RcppParallel::RVector<double> lambda;
+  const double* __restrict__ lambda_ptr;
   int n, p;
   
   std::vector<double> partial_data;
   RcppParallel::RMatrix<double> partial;
   
-  XLXtWorker(const XLXtWorker& other, RcppParallel::Split)
-    : X(other.X), lambda(other.lambda), n(other.n), p(other.p),
-      partial_data(n * n, 0.0), partial(partial_data.data(), n, n) {}
-  
-  XLXtWorker(const Rcpp::NumericMatrix& X_,
-             const Rcpp::NumericVector& lambda_,
+  XLXtWorker(const Rcpp::NumericMatrix& X_, 
+             const double* lambda_ptr_,
              std::vector<double>& shared_buffer)
-    : X(X_), lambda(lambda_), n(X_.nrow()), p(X_.ncol()),
-      partial_data(shared_buffer), partial(partial_data.data(), n, n) {}
+    : X(X_), 
+      lambda_ptr(lambda_ptr_), 
+      n(X_.nrow()), 
+      p(X_.ncol()),
+      partial_data(shared_buffer),
+      partial(partial_data.data(), n, n) {}
+  
+  XLXtWorker(const XLXtWorker& other, RcppParallel::Split)
+    : X(other.X), lambda_ptr(other.lambda_ptr), n(other.n), p(other.p),
+      partial_data(n * n, 0.0),
+      partial(partial_data.data(), n, n) {}
+  
   
   inline void operator()(std::size_t begin, std::size_t end) {
     const int block = 64;  // tweak for your CPU cache size
-    const double* __restrict__ lam = lambda.begin();
+    const double* __restrict__ lam = lambda_ptr;
     const double* __restrict__ Xptr = X.begin();
     double* __restrict__ pdata = partial_data.data();
     for (int kk = begin; kk < end; kk += block) {
       int kmax = std::min<int>(kk + block, end);
-      
-      // double* pdata = partial_data.data();
       for (int i = 0; i < n; ++i){
         for (int j = 0; j <= i; ++j){
           double sum = 0.0;
           
           #pragma GCC ivdep
-          // for (size_t k = begin; k < end; ++k){
           for (size_t k = kk; k < kmax; ++k){
-            // sum += lambda[k] * X(i, k) * X(j, k);
             sum += lam[k] * Xptr[i + k*n] * Xptr[j + k*n];
           }
           size_t idx = i + j * n;
           pdata[idx] += sum;
           if (i != j) pdata[j + i*n] += sum;
-          // partial(i,j) += sum;
         }
       }
     }
@@ -120,23 +122,11 @@ struct XLXtWorker : public RcppParallel::Worker {
     for (int i = 0; i < n * n; ++i)
       partial_data[i] += rhs.partial_data[i];
   }
-  
-  // void finalize(){
-  //   for (int i = 0; i < n; ++i) {
-  //     for (int k = 0; k < i; ++k) {
-  //       partial(k, i) = partial(i, k);
-  //     }
-  //   }
-  // }
 };
 
 
 Eigen::MatrixXd compute_XLambdaXt_core(const Rcpp::NumericMatrix& X,
                                        const Eigen::VectorXd& lambda_eigen) {
-  // Conversions
-  // This is not ideal, but works
-  static Rcpp::NumericVector lambda_rcpp(lambda_eigen.size());
-  std::copy(lambda_eigen.data(), lambda_eigen.data() + lambda_eigen.size(), lambda_rcpp.begin());
   
   int n = X.nrow();
   std::size_t p = X.ncol();
@@ -146,10 +136,9 @@ Eigen::MatrixXd compute_XLambdaXt_core(const Rcpp::NumericMatrix& X,
   if (thread_local_buffer.size() != required_size)
     thread_local_buffer.resize(required_size);
   std::fill(thread_local_buffer.begin(), thread_local_buffer.end(), 0.0);
-  
-  XLXtWorker worker(X, lambda_rcpp, thread_local_buffer);
-  parallelReduce(0, X.ncol(), worker, grain); // 100 here is grain size, can be tweaked a bit
-  // worker.finalize();  // Symmetrize
+  // Setting up worker and parallel reduce
+  XLXtWorker worker(X, lambda_eigen.data(), thread_local_buffer);
+  parallelReduce(0, X.ncol(), worker, grain); // grain set as proportion of p
   // Convert result back
   Eigen::Map<Eigen::MatrixXd> result(worker.partial_data.data(), X.nrow(), X.nrow());
   return result;
