@@ -12,7 +12,7 @@ thread_local std::vector<double> thread_local_buffer;
 
 
 //////////////////////////////////////////////////////////////////////////////
-///////////////////////////  Fast XLXT  //////////////////////////////////////
+///////////////////////////    Cache    //////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
 // Cache!
@@ -64,6 +64,10 @@ void prepare_cache(Rcpp::NumericMatrix X) {
   Eigen::MatrixXd X_eigen = as<Eigen::MatrixXd>(X);
   get_cache().initialize(X_eigen);
 }
+
+//////////////////////////////////////////////////////////////////////////////
+///////////////////////////  Fast XLXT  //////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
 
 // Worker and parallel stuff!
 struct XLXtWorker : public RcppParallel::Worker {
@@ -135,6 +139,8 @@ Eigen::MatrixXd compute_XLambdaXt_core(const Rcpp::NumericMatrix& X,
   std::copy(lambda_eigen.data(), lambda_eigen.data() + lambda_eigen.size(), lambda_rcpp.begin());
   
   int n = X.nrow();
+  std::size_t p = X.ncol();
+  std::size_t grain = std::max<std::size_t>(1, p / 100);
   size_t required_size = static_cast<size_t>(n) * n;
   // Reuse buffer
   if (thread_local_buffer.size() != required_size)
@@ -142,7 +148,7 @@ Eigen::MatrixXd compute_XLambdaXt_core(const Rcpp::NumericMatrix& X,
   std::fill(thread_local_buffer.begin(), thread_local_buffer.end(), 0.0);
   
   XLXtWorker worker(X, lambda_rcpp, thread_local_buffer);
-  parallelReduce(0, X.ncol(), worker, 10);
+  parallelReduce(0, X.ncol(), worker, grain); // 100 here is grain size, can be tweaked a bit
   // worker.finalize();  // Symmetrize
   // Convert result back
   Eigen::Map<Eigen::MatrixXd> result(worker.partial_data.data(), X.nrow(), X.nrow());
