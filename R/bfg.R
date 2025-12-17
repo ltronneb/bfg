@@ -61,7 +61,8 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
                                                           sigma = sigma0),
                                               N.params = c(n,m),
                                               N.iter = F_hypers$N.iter,
-                                              thinning = thinning)
+                                              thinning = thinning,
+                                              F_init = F0)
   } else{
     F_hypers = HMC_samplerSKIM$new(N.params=2*p+5,data = list(X = X,
                                                               t = t, 
@@ -81,7 +82,8 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
                                                              sigma = sigma0),
                                                  N.params = c(n,m),
                                                  N.iter = F_hypers$N.iter,
-                                                 thinning = thinning)
+                                                 thinning = thinning,
+                                                 F_init = F0)
   }
   
   # Found that it is generally good to init these samplers at large values,
@@ -119,7 +121,8 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
                                                         sigma = sigma0),
                                             N.params = c(n,m),
                                             N.iter = N.iter,
-                                            thinning = thinning)
+                                            thinning = thinning,
+                                            Z_init = Z0)
   # Sampler for variance
   # s2_sampler = GibbsSamplerVariance$new(n = n, m = m, sigma_sq_a = 2, sigma_sq_b = 0.1,
   #                                       data = list(Y = working_Y, F = F_sampler$samples[1,,], 
@@ -143,7 +146,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
                        N.iter=N.iter, plotting=plotting)
   )
   on.exit(return(L))
-  
+  # stop("test")
   # Now sampling starts
   for (i in 2:N.iter){
     ############################################################################
@@ -163,6 +166,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
     # F_hypers$data$gamma = Z_hypers$gamma[i-1,]
     F_hypers$data$gamma = rep(0,n)
     F_hypers$data$Y = F_sampler$samples[i-1,,]
+    F_hypers$data$tau0_prime[i] = tau0_prime0*sqrt(s2_sampler$samples[i-1]^2)
     # # Sample F_hypers
     F_hypers$sample()
     # # Sample Z_hypers
@@ -195,7 +199,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
     Z_sampler$data$gamma = Z_hypers$gamma[i,]
     for (k in 0:(thinning-1)){
       # print(F_sampler$unthinned_samples[F_sampler$iteration-1,1,])
-      Z_sampler$data$Y = working_Y - F_sampler$unthinned_samples[F_sampler$iteration-1,,]
+      Z_sampler$data$Y = working_Y - F_sampler$unthinned_samples[F_sampler$iteration,,]
       # Don't update these yet
       # if (i < 25){
       # Z_sampler$unthinned_samples[Z_sampler$iteration,,] =  Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
@@ -231,7 +235,6 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
     s2_sampler$sample()
     # s2_sampler$samples[i] = 0.1231101^2
     # Update hypers in other samplers
-    F_hypers$data$tau0_prime[i+1] = tau0_prime0*sqrt(s2_sampler$samples[i]^2)
     F_sampler$data$sigma = sqrt(s2_sampler$samples[i]^2)
     Z_sampler$data$sigma = sqrt(s2_sampler$samples[i]^2)
     ############################################################################

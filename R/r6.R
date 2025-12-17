@@ -516,13 +516,16 @@ KroneckerMatheronSamplerF = R6Class("KroneckerMatheronSampler",
                                         reject_counter = 0 # count rejections
                                       ),
                                       initialize = function(N.iter = 1000, N.params = NULL,
-                                                            data = NULL, thinning = 10){
+                                                            data = NULL, thinning = 10,
+                                                            F_init = NULL){
                                         self$N.iter = N.iter
                                         self$N.params = N.params
                                         self$unthinned_samples = array(NA,dim=c(N.iter*thinning,N.params))
                                         self$data = data
                                         self$thinning = thinning
-                                        self$sample() # Init this by sampling
+                                        self$unthinned_samples[1,,] = F_init
+                                        # self$sample() # Init this by sampling
+                                        self$iteration = 1 #overwrite the increase in init
                                       },
                                       sample = function(){
                                         # I'll create the kernels here as well and do everything
@@ -598,21 +601,21 @@ KroneckerMatheronSamplerF = R6Class("KroneckerMatheronSampler",
                                           reject = T
                                         }
                                         if (reject){ # Reject
-                                          self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-1,,]
+                                          self$unthinned_samples[self$iteration+1,,] = self$unthinned_samples[self$iteration,,]
                                           self$control$reject_counter = self$control$reject_counter + 1
                                         } else{ # Accept
-                                          self$unthinned_samples[self$iteration,,] = step
+                                          self$unthinned_samples[self$iteration+1,,] = step
                                           self$control$reject_counter = 0
                                         }
                                         if (self$control$reject_counter > 5){
                                           # Go back to a point where things worked
-                                          self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-6,,]
+                                          self$unthinned_samples[self$iteration+1,,] = self$unthinned_samples[self$iteration-5,,]
                                         }
                                         # And increase iteration
                                         self$iteration = self$iteration + 1
                                       },
                                       skip = function(){
-                                        self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-1,,]
+                                        self$unthinned_samples[self$iteration+1,,] = self$unthinned_samples[self$iteration,,]
                                         self$iteration = self$iteration + 1
                                       }
                                     ),
@@ -708,13 +711,16 @@ KroneckerMatheronSamplerZ = R6Class("KroneckerMatheronSampler",
                                         reject_counter = 0 # count rejections
                                       ),
                                       initialize = function(N.iter = 1000, N.params = NULL,
-                                                            data = NULL, thinning = 10){
+                                                            data = NULL, thinning = 10,
+                                                            Z_init = NULL){
                                         self$N.iter = N.iter
                                         self$N.params = N.params
                                         self$unthinned_samples = array(NA,dim=c(N.iter*thinning,N.params))
                                         self$data = data
                                         self$thinning = thinning
-                                        self$sample() # Init this by sampling
+                                        self$unthinned_samples[1,,] = Z_init
+                                        # self$sample() # Init this by sampling
+                                        self$iteration = 1 # Current iteration
                                       },
                                       sample = function(){
                                         # I'll create the kernels here as well and do everything
@@ -771,21 +777,21 @@ KroneckerMatheronSamplerZ = R6Class("KroneckerMatheronSampler",
                                           reject = T
                                         }
                                         if (reject){ # Reject
-                                          self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-1,,]
+                                          self$unthinned_samples[self$iteration+1,,] = self$unthinned_samples[self$iteration,,]
                                           self$control$reject_counter = self$control$reject_counter + 1
                                         } else{ # Accept
-                                          self$unthinned_samples[self$iteration,,] = step
+                                          self$unthinned_samples[self$iteration+1,,] = step
                                           self$control$reject_counter = 0
                                         }
                                         if (self$control$reject_counter > 5){
                                           # Go back to a point where things worked
-                                          self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-6,,]
+                                          self$unthinned_samples[self$iteration+1,,] = self$unthinned_samples[self$iteration-5,,]
                                         }
                                         # And increase iteration
                                         self$iteration = self$iteration + 1
                                       },
                                       skip = function(){
-                                        self$unthinned_samples[self$iteration,,] = self$unthinned_samples[self$iteration-1,,]
+                                        self$unthinned_samples[self$iteration+1,,] = self$unthinned_samples[self$iteration,,]
                                         self$iteration = self$iteration + 1
                                       }
                                     ),
@@ -1000,6 +1006,7 @@ MHSamplerSigma = R6Class("MH",
                              # MH ratio
                              log_acc = -(prod(dim(self$data$Y))+2*self$data$sigma_sq_a)*(log_sigma_star - log_sigma) -
                                (0.5*self$S+self$data$sigma_sq_b)*(exp(-2*log_sigma_star)-exp(-2*log_sigma))
+                             # print(log_acc)
                              acc_ratio = min(1,exp(log_acc))
                              acc = rbinom(1,1,acc_ratio)
                              # print(paste0("MH acce prob: ", round(acc,4)))
