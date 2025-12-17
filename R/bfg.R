@@ -11,7 +11,7 @@
 #'@param plotting : bool, plot fitted curves and variable selection on the fly?
 #'
 #'@export
-bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter=2000, plotting=F){
+bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N.iter=2000, plotting=F){
   # TODO check inputs are correctly formatted and dimensioned
   X = as.matrix(X)
   Y = as.matrix(Y)
@@ -31,8 +31,9 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
   # ell0 = 0.1
   # print(ell0)
   sigma0 = 0.1
-  F0 = working_Y
+  # F0 = working_Y
   Z0 = matrix(0,ncol=m,nrow=n)
+  F0 = Z0
   
   
   
@@ -163,29 +164,26 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
     ############################################################################
     ############### SAMPLING HYPERS ############################################
     ############################################################################
-    # F_hypers$data$gamma = Z_hypers$gamma[i-1,]
+    # Sample F_hypers
     F_hypers$data$gamma = rep(0,n)
     F_hypers$data$Y = F_sampler$samples[i-1,,]
     F_hypers$data$tau0_prime[i] = tau0_prime0*sqrt(s2_sampler$samples[i-1]^2)
-    # # Sample F_hypers
     F_hypers$sample()
-    # # Sample Z_hypers
+    # Sample Z_hypers
     eta = n*(F_hypers$c[i]^2 + sum((F_hypers$tau[i]*F_hypers$lambda[i,])^2) + s2_sampler$samples[i-1]^2)
-    # print(paste0("eta: ",eta))
     Z_hypers$data$eta[i] = eta
-    # print(Z_hypers$data$eta[1:i])
     Z_hypers$data$Y = Z_sampler$samples[i-1,,]
     Z_hypers$sample()
     
     # Print proportion of variance explained
     gamma_sum = sum(Z_hypers$gamma[i,]^2)
     eta_ratio = (gamma_sum)/(eta + gamma_sum)
-    print(paste0("eta ratio: ", eta_ratio))
+    print(paste0("Variance explained by random effects: ", round(100*eta_ratio,2),"%"))
     
     ############################################################################
     ############### SAMPLING FUNCTIONS #########################################
     ############################################################################
-    # # Set up hypers 
+    # Set up hypers 
     F_sampler$data$c = F_hypers$c[i]
     if (!interactions){
       F_sampler$data$tau = F_hypers$tau[i]
@@ -195,36 +193,20 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
     }
     F_sampler$data$lambda = F_hypers$lambda[i,]
     F_sampler$data$gamma = Z_hypers$gamma[i,]
-    # print(F_sampler$data$gamma)
+    F_sampler$data$Y = working_Y
     Z_sampler$data$gamma = Z_hypers$gamma[i,]
     for (k in 0:(thinning-1)){
-      # print(F_sampler$unthinned_samples[F_sampler$iteration-1,1,])
+      # Sample F
+      F_sampler$sample()
+      # Sample Z conditional on F
       Z_sampler$data$Y = working_Y - F_sampler$unthinned_samples[F_sampler$iteration,,]
-      # Don't update these yet
-      # if (i < 25){
-      # Z_sampler$unthinned_samples[Z_sampler$iteration,,] =  Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
-      # Z_sampler$iteration = Z_sampler$iteration + 1
-      # } else{
       Z_sampler$sample()
-      # }
       
-      
-      # Sum-to-zero correction here # TRY TURNING THIS OFF!
+      # Sum-to-zero correction here
       B = diag(n) - 1/n*rep(1,n)%*%t(rep(1,n))
       tmp = Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
       tmp = B%*%tmp
       Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = tmp
-      # Orthogonal here
-      # Precompute the pseudo-inverse factor
-      # tmpF = F_sampler$unthinned_samples[F_sampler$iteration-1,,]
-      # tmpZ = Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
-      # P = tmpF%*%solve(t(tmpF)%*%tmpF + 1e-6*diag(ncol(tmpF)),t(tmpF))
-      # 
-      # Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = (diag(nrow(tmpF))-P)%*%tmpZ
-      
-      # F_sampler$data$Y = working_Y - Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
-      F_sampler$data$Y = working_Y
-      F_sampler$sample()
     }
     ############################################################################
     ############### SAMPLING sigma_sq ##########################################
@@ -233,7 +215,6 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
     s2_sampler$data$Z = Z_sampler$samples[i,,]
     s2_sampler$data$Y = working_Y
     s2_sampler$sample()
-    # s2_sampler$samples[i] = 0.1231101^2
     # Update hypers in other samplers
     F_sampler$data$sigma = sqrt(s2_sampler$samples[i]^2)
     Z_sampler$data$sigma = sqrt(s2_sampler$samples[i]^2)
@@ -250,11 +231,9 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
     Z_hypers$data$ell = ell_sampler$ell[i]
     F_sampler$data$ell = ell_sampler$ell[i]
     Z_sampler$data$ell = ell_sampler$ell[i]
-    
-    # print(Z_hypers$gamma[i,])
-    
-    ## PLOTTING
-    if (plotting){
+
+    # PLOTTING
+    if (plotting & !is.null(data_generated)){
       idx = 11
       lag = 100
       par(mfrow=c(2,2))
@@ -287,10 +266,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated,interactions=F,thinning=1,N.iter
       Sys.sleep(0.1)
       par(mfrow=c(1,1))
     }
-    # readline(prompt="Press [enter] to continue")
-    
   }
-
 }
 
 

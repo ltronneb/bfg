@@ -9,7 +9,7 @@ bfg(
   X,
   t,
   tau0_prime0,
-  data_generated,
+  data_generated = NULL,
   interactions = F,
   thinning = 1,
   N.iter = 2000,

@@ -72,7 +72,6 @@ void prepare_cache(Rcpp::NumericMatrix X) {
 // Worker and parallel stuff!
 struct XLXtWorker : public RcppParallel::Worker {
   const RcppParallel::RMatrix<double> X;
-  // const RcppParallel::RVector<double> lambda;
   const double* __restrict__ lambda_ptr;
   int n, p;
   
@@ -167,22 +166,17 @@ Rcpp::List HMC_kernel(PotentialFunc U,
   VectorXd q = q_current;
   // Momentum vector
   VectorXd eta = Rcpp::as<VectorXd>(Rcpp::rnorm(q.size(),0.0,1.0));
-  // std::cout << "eta: " << eta.array() << std::endl;
   VectorXd p = mass_matrix_diag.array().sqrt() * eta.array();
-  // std::cout << "p: " << p.array() << std::endl;
   VectorXd p_current = p;
-  // std::cout << "p_current: " << p_current.array() << std::endl;
   
   // Half step momentum
   {
-    // stan::math::start_nested();
     StanNestedScope scope;
     Matrix<var, -1, 1> q_var = q.cast<var>();
     var U_val = U(q_var,1);
     std::vector<var> q_vars(q_var.data(), q_var.data() + q_var.size());
     std::vector<double> grad_U_vec;
     U_val.grad(q_vars,grad_U_vec);
-    // stan::math::recover_memory_nested();
     VectorXd grad_U = Eigen::Map<VectorXd>(grad_U_vec.data(),grad_U_vec.size());
     p -= 0.5*epsilon*grad_U;
   }
@@ -194,14 +188,12 @@ Rcpp::List HMC_kernel(PotentialFunc U,
       if (i != L-1){
         {
           StanNestedScope scope;
-          // stan::math::start_nested();
           
           Matrix<var, -1, 1> q_var = q.cast<var>();
           var U_val = U(q_var,0);
           std::vector<var> q_vars(q_var.data(), q_var.data() + q_var.size());
           std::vector<double> grad_U_vec;
           U_val.grad(q_vars,grad_U_vec);
-          // stan::math::recover_memory_nested();
           VectorXd grad_U = Eigen::Map<VectorXd>(grad_U_vec.data(), grad_U_vec.size());
           p -= epsilon * grad_U;
         }
@@ -215,13 +207,11 @@ Rcpp::List HMC_kernel(PotentialFunc U,
   // Final half step
   {
     StanNestedScope scope;
-    // stan::math::start_nested();
     Matrix<var, -1, 1> q_var = q.cast<var>();
     var U_val = U(q_var,0);
     std::vector<var> q_vars(q_var.data(), q_var.data() + q_var.size());
     std::vector<double> grad_U_vec;
     U_val.grad(q_vars, grad_U_vec);
-    // stan::math::recover_memory_nested();
     VectorXd grad_U = Eigen::Map<VectorXd>(grad_U_vec.data(), grad_U_vec.size());
     p -= 0.5 * epsilon * grad_U;
     
@@ -232,20 +222,16 @@ Rcpp::List HMC_kernel(PotentialFunc U,
   
   VectorXd p_current_d = p_current.val();
   VectorXd p_d = p.val();
-  // std::cout << "p_current: " << p.array() << std::endl;
-  // std::cout << "p_d: " << p.array() << std::endl;
   
   // Evaluate energies
   double current_U;
   double proposed_U;
   {
     StanNestedScope scope;
-    // stan::math::start_nested();
     Matrix<var, -1, 1> q_current_var = q_current.cast<var>();
     Matrix<var, -1, 1> q_var = q.cast<var>();
     current_U =  U(q_current_var,0).val();
     proposed_U = U(q_var,0).val();
-    // stan::math::recover_memory_nested();
   }
   // Kinetic
   double current_K = 0.5 * (p_current_d.array().square() / mass_matrix_diag.array()).sum();
@@ -255,7 +241,6 @@ Rcpp::List HMC_kernel(PotentialFunc U,
   double log_accept_prob = current_U - proposed_U + current_K - proposed_K;
   double accept_prob = std::exp(std::min(0.0,log_accept_prob));
   
-  // 
   Eigen::VectorXd q_return;
   if (Rcpp::runif(1, 0.0, 1.0)[0] < accept_prob)
     q_return = q.val();
@@ -264,8 +249,6 @@ Rcpp::List HMC_kernel(PotentialFunc U,
   
   // Return objects I care about
   if (stan::math::empty_nested()){
-    // I could add a check here to see if this is actually called
-    // std::cout << "Stan recover_memory called " << std::endl;
     stan::math::recover_memory();
   }
   
@@ -367,7 +350,6 @@ struct LowRankLLT : LLTBase {
     }
     
     Eigen::MatrixXd M = (X_active.transpose() * X_active) / eps;
-    // M.diagonal().array() += diag_active.cwiseInverse().array();
     M.diagonal().array() += (1.0 / diag_active.array());
     M.diagonal().array() += 1e-4;
     
