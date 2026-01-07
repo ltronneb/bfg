@@ -209,7 +209,7 @@ HMC_samplerF = R6Class("HMCSampler",
                        inherit = HMC,
                        public = list(
                          initialize = function(slab_scale = 4, slab_df = 4.0, 
-                                               nu_local = 3, nu_global = 3,...){
+                                               nu_local = 1, nu_global = 3,...){
                            super$initialize(...)
                            self$data$slab_scale = slab_scale
                            self$data$slab_df = slab_df
@@ -932,8 +932,10 @@ MHSamplerEll = R6Class("MH",
                            log_post_star = -0.5*(log_det_star + inv_solve_star) + prior_star
                            # Acceptance ratio
                            log_acc = log_post_star - log_post
-                           acc_ratio = min(1,exp(log_acc))
-                           acc = rbinom(1,1,acc_ratio)
+                           # acc_ratio = min(1,exp(log_acc))
+                           # acc = rbinom(1,1,acc_ratio)
+                           accept = is.finite(log_acc) && (log(runif(1)) < log_acc)
+                           acc = as.integer(accept)
                            # Do we accept
                            if (acc){
                              self$samples[self$iteration+1] = exp(log_ell_star)
@@ -943,10 +945,11 @@ MHSamplerEll = R6Class("MH",
                            
                            # Update proposal variance Robbins-Monro
                            if (self$iteration < 1000){
-                             c = 1
-                             t0 = 50
-                             a = 0.6
-                             gamma_t = c / (self$iteration + t0)^a
+                             # c = 1
+                             # t0 = 50
+                             # a = 0.6
+                             # gamma_t = c / (self$iteration + t0)^a
+                             gamma_t = 1/self$iteration
                              self$data$prop_sigma = exp(log(self$data$prop_sigma) + gamma_t * (acc - self$data$target_rate))
                            }
                            
@@ -984,8 +987,8 @@ MHSamplerSigma = R6Class("MH",
                          inherit = MCMC,
                          public = list(
                            initialize = function(Y, F, Z, s0,
-                                                 sigma_sq_a = 2,
-                                                 sigma_sq_b = 0.1,
+                                                 sigma_sq_a = 0,
+                                                 sigma_sq_b = 0,
                                                  prop_sigma = 0.05,
                                                  target_rate = 0.44, ...){
                              super$initialize(...)
@@ -1007,8 +1010,9 @@ MHSamplerSigma = R6Class("MH",
                              log_acc = -(prod(dim(self$data$Y))+2*self$data$sigma_sq_a)*(log_sigma_star - log_sigma) -
                                (0.5*self$S+self$data$sigma_sq_b)*(exp(-2*log_sigma_star)-exp(-2*log_sigma))
                              # print(log_acc)
-                             acc_ratio = min(1,exp(log_acc))
-                             acc = rbinom(1,1,acc_ratio)
+                             # acc_ratio = min(1,exp(log_acc))
+                             # acc = rbinom(1,1,acc_ratio)
+                             acc = as.integer(log(runif(1))<log_acc)
                              # print(paste0("MH acce prob: ", round(acc,4)))
                              # Do we accept
                              if (acc){
@@ -1019,10 +1023,11 @@ MHSamplerSigma = R6Class("MH",
                              
                              # Update proposal variance Robbins-Monro
                              if (self$iteration < 1000){
-                               c = 1
-                               t0 = 50
-                               a = 0.6
-                               gamma_t = c / (self$iteration + t0)^a
+                               # c = 1
+                               # t0 = 50
+                               # a = 0.6
+                               # gamma_t = c / (self$iteration + t0)^a
+                               gamma_t = 1/self$iteration
                                self$data$prop_sigma = exp(log(self$data$prop_sigma) + gamma_t * (acc - self$data$target_rate))
                              }
                              
@@ -1038,4 +1043,29 @@ MHSamplerSigma = R6Class("MH",
                              return(self$samples)
                            }
                          )
+)
+
+GibbsSamplerVariance = R6Class("Gibbs",
+                               inherit = MCMC,
+                               public = list(
+                                 initialize = function(n, m,s2_0,
+                                                       sigma_sq_a = 0, 
+                                                       sigma_sq_b = 0,
+                                                       ...){
+                                   super$initialize(...)
+                                   self$data$n = n
+                                   self$data$m = m
+                                   self$samples[1] = s2_0
+                                   self$data$sigma_sq_a = sigma_sq_a
+                                   self$data$sigma_sq_b = sigma_sq_b
+                                 },
+                                 sample = function(){
+                                   S = sum((self$data$Y - (self$data$F + self$data$Z))^2)
+                                   self$samples[self$iteration+1] = 1/rgamma(1,
+                                                                           shape = self$data$sigma_sq_a + self$data$n*self$data$m/2,
+                                                                           rate = self$data$sigma_sq_b + S/2)
+                                   # And increase iteration
+                                   self$iteration = self$iteration + 1
+                                 }
+                               )
 )
