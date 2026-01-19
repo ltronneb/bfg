@@ -105,7 +105,7 @@ struct XLXtWorker : public RcppParallel::Worker {
         for (int j = 0; j <= i; ++j){
           double sum = 0.0;
           
-          #pragma GCC ivdep
+#pragma GCC ivdep
           for (size_t k = kk; k < kmax; ++k){
             sum += lam[k] * Xptr[i + k*n] * Xptr[j + k*n];
           }
@@ -421,8 +421,8 @@ stan::math::var gp_1dloglik_analyticgrad(const Eigen::MatrixXd& X,
   K_val.array() += c * c;
   K_val.diagonal().array() += 1e-6;
   // Eigen::LLT<Eigen::MatrixXd> llt_full(K_val);
-
-
+  
+  
   // Logic for low-rank adaptation -- turned off for now
   static std::unique_ptr<LLTBase> llt; // This is static, so persists
   llt = std::make_unique<FullLLT>(K_val);
@@ -701,6 +701,116 @@ stan::math::var gp_1dloglik_analyticgrad_re(const Eigen::MatrixXd& F,
   return -0.5*(quad_solve_var + log_det_var);
 }
 
+
+// And a version for \theta_t and noise variance
+stan::math::var gp_1dloglik_analyticgrad_theta_k(const Eigen::MatrixXd& t_distances,
+                                                 const Eigen::MatrixXd& Y,
+                                                 const Eigen::MatrixXd& Qy, // Eigen-decomp of K_t
+                                                 const Eigen::VectorXd& Dy, // Eigen-decomp of K_t
+                                                 const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1>& theta,
+                                                 const bool first_step){
+  
+  // First thing I pull out the values of theta
+  Eigen::VectorXd theta_val = theta.val();
+  
+  // And pull out the things I care about
+  double ell_val = theta_val(0);
+  double sigma_val = theta_val(1);
+  
+  // Kernel construction and Eigendecomp
+  Eigen::MatrixXd K_val = (-0.5 * t_distances.array() / (ell_val * ell_val)).exp();
+  // K_val.diagonal().array() += 1e-6;
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigKt(K_val);
+  
+  // Some helper quantities
+  Eigen::MatrixXd Z = Qy.transpose() * Y * eigKt.eigenvectors();
+  Eigen::MatrixXd inv_eigvals = 1.0 / ((eigKt.eigenvalues() * Dy.transpose()).array() + (sigma_val * sigma_val));
+  Eigen::MatrixXd alpha = Qy * (inv_eigvals.array() * Z.transpose().array()).matrix().transpose() * eigKt.eigenvectors().transpose(); // K^{-1}y
+  
+  // Now quad_solve and log_det values
+  double quad_solve = (Y.array() * alpha.array()).sum();
+  double log_det = (1.0 / inv_eigvals.array()).log().sum();
+  
+  //GRADIENTS (following Algorithm 16 of Saatci's thesis)
+  std::vector<double> quad_solve_grad(2); // Will store them here
+  std::vector<double> log_det_grad(2);
+  
+  // wrt ell
+  Eigen::MatrixXd dKtdell = (K_val.array() * (t_distances.array() / (ell_val * ell_val * ell_val))).matrix();
+  // helper functions
+  Eigen::MatrixXd kappa = (Qy * Dy.asDiagonal() * Qy.transpose()) * alpha * dKtdell;
+  Eigen::VectorXd gamma_t = (eigKt.eigenvectors().transpose() * dKtdell * eigKt.eigenvectors()).diagonal();
+  Eigen::MatrixXd gamma = gamma_t * Dy.transpose();
+  // compute and store 
+  quad_solve_grad[0] = -(alpha.array() * kappa.array()).sum();
+  log_det_grad[0] = (inv_eigvals.array() * gamma.array()).sum();
+  
+  // wrt sigma
+  double dKtdsigma = 2.0 * sigma_val; // no need to construct the identity
+  quad_solve_grad[1] = -dKtdsigma*(alpha.array().square().sum());
+  log_det_grad[1] = dKtdsigma * inv_eigvals.array().sum();
+  
+  // Setting up the var objects
+  stan::math::var quad_solve_var = stan::math::precomputed_gradients(quad_solve,theta,quad_solve_grad);
+  stan::math::var log_det_var = stan::math::precomputed_gradients(log_det,theta,log_det_grad);
+  
+  // Returning
+  return -0.5*(quad_solve_var + log_det_var);
+}
+
+// A version here for \theta_z and variance
+stan::math::var gp_1dloglik_analyticgrad_re_noise(const Eigen::MatrixXd& Y,
+                                                   const Eigen::MatrixXd& Qt,
+                                                   const Eigen::VectorXd& Dt,
+                                                   const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1>& theta,
+                                                   const bool first_step){
+  // Define some constants
+  int n = Y.rows();
+  int m = Y.cols();
+
+  // First thing I pull out values I need
+  Eigen::VectorXd theta_val = theta.val();
+  Eigen::VectorXd gamma_val = theta_val.segment(0,n);
+  Eigen::VectorXd gamma_sq_val = gamma_val.array().square();
+  double sigma_val = theta_val(n);
+  double sigma_sq_val = sigma_val * sigma_val;
+
+  // Helper quantities
+  Eigen::MatrixXd Z = Y * Qt;
+  Eigen::MatrixXd inv_eigvals = 1.0 / ((gamma_sq_val * Dt.transpose()).array() + sigma_sq_val);
+  Eigen::MatrixXd alpha = (inv_eigvals.array() * Z.array()).matrix() * Qt.transpose();
+  Eigen::MatrixXd alpha_Kt = alpha * (Qt * Dt.asDiagonal() * Qt.transpose());
+
+  // Quad_solve and log_det values
+  double quad_solve = (Y.array() * alpha.array()).sum();
+  double log_det = (1.0 / inv_eigvals.array()).log().sum();
+
+  // Gradients following Algorithm 16 of Saatci's thesis
+  std::vector<double> quad_solve_grad(n+1);
+  std::vector<double> log_det_grad(n+1);
+
+  // For gammas
+  for (int j = 0; j < n; ++j){
+    Eigen::VectorXd alpha_Kt_j = alpha_Kt.row(j).transpose();
+    Eigen::VectorXd alpha_j = alpha.row(j).transpose();
+    double scale = 2.0 * gamma_val(j);
+    quad_solve_grad[j] = -scale * (alpha_Kt_j.array() * alpha_j.array()).sum();
+    log_det_grad[j] = scale * (inv_eigvals.row(j).transpose().array() * Dt.array()).sum();
+  }
+  // For sigma
+  quad_solve_grad[n] = -2.0*sigma_val * (alpha.array().square().sum());
+  log_det_grad[n] = 2.0 *sigma_val * inv_eigvals.array().sum();
+
+  // Setting up the var objects
+  stan::math::var quad_solve_var = stan::math::precomputed_gradients(quad_solve,theta,quad_solve_grad);
+  stan::math::var log_det_var = stan::math::precomputed_gradients(log_det,theta,log_det_grad);
+
+  // Returning
+  return -0.5*(quad_solve_var + log_det_var);
+}
+
+
+
 //////////////////////////////////////////////////////////////////////////////
 ///////////////////////////// MODELS /////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -955,6 +1065,7 @@ T gp_kron_logpost_1d_SKIM(// Data
     const bool first_step
 ){
   using stan::math::log_sum_exp;
+  // Rcpp::Rcout << "is this never called?!!!!!!:" << std::endl;
   
   // Pull out parameters
   T log_tau_aux_1 = q(0);
@@ -1037,6 +1148,7 @@ Rcpp::List sample_f_hypers_SKIM(Eigen::MatrixXd X,  // Data
                                 const double& slab_df = 4.0, // Hypers w/ default values
                                 const int& nu_local = 1, // Hypers w/ default values
                                 const int& nu_global = 1 // Hypers w/ default values
+                                  
 ){
   
   using stan::math::var;
@@ -1060,5 +1172,170 @@ Rcpp::List sample_f_hypers_SKIM(Eigen::MatrixXd X,  // Data
   return HMC_kernel(U, q_val, mass_matrix_diag, epsilon, L);
 }
 
+// \theta_t and \sigma
+template <typename T>
+T gp_kron_logpost_1d_theta_t(const Eigen::MatrixXd& t_distances,
+                             const Eigen::MatrixXd& Qy,
+                             const Eigen::VectorXd& Dy,
+                             const Eigen::MatrixXd& Y, // The data
+                             const double& temperature,
+                             const double& eta,
+                             const double& beta_sigma_a,
+                             const double& beta_sigma_b,
+                             const double& inv_gamma_ell_a,
+                             const double& inv_gamma_ell_b, // Hyperparameters
+                             const Eigen::Matrix<T, Eigen::Dynamic, 1>& q, // parameters to sample
+                             const bool first_step
+){
+  // Rcpp::Rcout << "is this never called?!:" << std::endl;
+  // Pull out parameters
+  T log_ell = q(0);
+  T logit_u = q(1);
+  // T log_sigma = q(1);
+  // Transform parameters into proper scale and make sure bounds hold
+  T ell = exp(log_ell);
+  T u = inv_logit(logit_u); // This is beta distributed
+  T omega = exp(logit_u); // This is beta-prime distributed
+  // T sigma = exp(log_sigma);
+  T sigma_sq = omega * eta; // This is scaled beta prime distributed
+  T sigma = sqrt(sigma_sq);
+  // Stack these into a vector
+  Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> theta(2);
+  theta(0) = ell;
+  theta(1) = sigma;
+  // Likelihood
+  auto loglik = gp_1dloglik_analyticgrad_theta_k(t_distances, Y, Qy, Dy, theta, first_step);
+  // Priors
+  auto log_prior_log_ell = inv_gamma_lpdf(ell, inv_gamma_ell_a, inv_gamma_ell_a) + log_ell;
+  // auto log_prior_log_sigma = -2.0*log_sigma; // \pi(\sigma^2) \propto 1 / \sigma^2 prior is flat in log-scale no jacobian needed
+  // auto log_prior_log_sigma = normal_lpdf(sigma,0.0,0.25) + log_sigma;
+  auto log_prior_logit_u = beta_lpdf(u,beta_sigma_a,beta_sigma_b) + log(u) + log1m(u);
+  // Log posterior returned
+  auto logpost = temperature * loglik + log_prior_log_ell + log_prior_logit_u; //+ log_prior_log_sigma;
+  // auto logpost = log_prior_log_ell + log_prior_log_sigma;
+  // Rcpp::Rcout << "logpost:" << logpost.val() << std::endl;
+  return logpost;
+  // return sigma;
+  
+}
+
+//  [[Rcpp::export]]
+Rcpp::List sample_t_hypers(Eigen::MatrixXd t_distances, // Data
+                           const Eigen::MatrixXd& Qy,
+                           const Eigen::VectorXd& Dy,
+                           const Eigen::MatrixXd& Y,
+                           const Eigen::VectorXd& q_val, // Parameters
+                           const double& temperature,
+                           const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, // Hypers
+                           const double& eta,
+                           const double& beta_sigma_a,
+                           const double& beta_sigma_b,
+                           const double& inv_gamma_ell_a,
+                           const double& inv_gamma_ell_b
+){
+  using stan::math::var;
+  using Eigen::VectorXd;
+  using Eigen::Matrix;
+  // Set up potential function lambda
+  auto U = [&](const Eigen::Matrix<var, -1, 1> q_val, const bool first_step){
+    return -gp_kron_logpost_1d_theta_t(t_distances, Qy, Dy, Y, temperature,
+                                       eta, beta_sigma_a, beta_sigma_b,
+                                       inv_gamma_ell_a, inv_gamma_ell_b,
+                                       q_val,
+                                       first_step
+    );
+  };
+  
+  return HMC_kernel(U, q_val, mass_matrix_diag, epsilon, L);
+}
 
 
+
+// random effects and noise
+template <typename T>
+T gp_kron_logpost_1d_re_noise(const Eigen::MatrixXd& Qt,
+                              const Eigen::VectorXd& Dt,
+                              const Eigen::MatrixXd& Y,
+                              const double& temperature,
+                              const double& eta,
+                              const double& beta_gamma_a,
+                              const double& beta_gamma_b,
+                              const double& dir_a,
+                              const double& beta_sigma_a,
+                              const double& beta_sigma_b,
+                              const Eigen::Matrix<T, Eigen::Dynamic, 1>& q,
+                              const bool first_step
+){
+  
+  // Defining some quantities we use
+  int n = Y.rows();
+  int m = Y.cols();
+
+  // Pull out parameters
+  Eigen::Matrix<T, Eigen::Dynamic, 1> log_phi_tilde = q.segment(0, n);
+  T logit_u = q(n);
+  T log_sigma = q(n+1);
+
+  // Transform parameters
+  Eigen::Matrix<T, Eigen::Dynamic, 1> phi_tilde = exp(log_phi_tilde); // Gamma distributed
+  Eigen::Matrix<T, Eigen::Dynamic, 1> phi = exp(log_softmax(log_phi_tilde)); // Dirichlet distributed
+  T u = inv_logit(logit_u); // Beta distribute
+  T omega = exp(logit_u); // Beta prime distributed
+  T omega_scaled = omega * eta; // Scaled beta prime distributed
+
+  // And now create gammas and sigma
+  Eigen::Matrix<T, Eigen::Dynamic, 1> gamma = sqrt(phi * omega_scaled);
+  T sigma = exp(log_sigma);
+  
+  // And store in container
+  Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> theta(n+1);
+  theta.segment(0,n) = gamma;
+  theta(n) = sigma;
+
+  // Get the log-marginal likelihood
+  auto loglik = gp_1dloglik_analyticgrad_re_noise(Y, Qt, Dt, theta,first_step);
+  // Tack on priors
+  auto log_prior_log_phi_tilde = stan::math::gamma_lpdf(phi_tilde,dir_a,1) + sum(log_phi_tilde);
+  auto log_prior_logit_u = stan::math::beta_lpdf(u, beta_gamma_a, beta_gamma_b) + log(u) + log1m(u);
+  auto log_prior_log_sigma = stan::math::std_normal_lpdf(sigma) + log_sigma;
+
+  // Log posterior returned
+  auto logpost = temperature * loglik +
+    log_prior_log_phi_tilde +
+    log_prior_logit_u +
+    log_prior_log_sigma;
+  return logpost;
+}
+
+
+
+
+
+//  [[Rcpp::export]]
+Rcpp::List sample_Z_hypers_and_noise(const Eigen::MatrixXd& Qt, 
+  const Eigen::VectorXd& Dt,
+  const Eigen::MatrixXd& Y,
+  const Eigen::VectorXd& q_val, // Parameters
+  const double& temperature,
+  const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, // Hypers
+  const double& eta,
+  const double& beta_gamma_a,
+  const double& beta_gamma_b,
+  const double& dir_a,
+  const double& beta_sigma_a,
+  const double& beta_sigma_b){
+
+  using stan::math::var;
+  using Eigen::VectorXd;
+  using Eigen::Matrix;
+  
+  auto U = [&](const Eigen::Matrix<var, -1, 1> q_val, const bool first_step){
+    return -gp_kron_logpost_1d_re_noise(Qt, Dt,
+                                        Y, temperature, 
+                                        eta, beta_gamma_a, beta_gamma_b, dir_a,
+                                        beta_sigma_a, beta_sigma_b,
+                                        q_val, first_step);
+  };
+
+  return HMC_kernel(U,q_val,mass_matrix_diag,epsilon,L);
+}

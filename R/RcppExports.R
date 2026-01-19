@@ -21,3 +21,11 @@ sample_f_hypers_SKIM <- function(X, Qt, Dt, F, tau0_prime_in, nugget_in, ell_in,
     .Call(`_bfg_sample_f_hypers_SKIM`, X, Qt, Dt, F, tau0_prime_in, nugget_in, ell_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global)
 }
 
+sample_t_hypers <- function(t_distances, Qy, Dy, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_sigma_a, beta_sigma_b, inv_gamma_ell_a, inv_gamma_ell_b) {
+    .Call(`_bfg_sample_t_hypers`, t_distances, Qy, Dy, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_sigma_a, beta_sigma_b, inv_gamma_ell_a, inv_gamma_ell_b)
+}
+
+sample_Z_hypers_and_noise <- function(Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a, beta_sigma_a, beta_sigma_b) {
+    .Call(`_bfg_sample_Z_hypers_and_noise`, Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a, beta_sigma_a, beta_sigma_b)
+}
+

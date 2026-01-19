@@ -104,6 +104,54 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// sample_t_hypers
+Rcpp::List sample_t_hypers(Eigen::MatrixXd t_distances, const Eigen::MatrixXd& Qy, const Eigen::VectorXd& Dy, const Eigen::MatrixXd& Y, const Eigen::VectorXd& q_val, const double& temperature, const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, const double& eta, const double& beta_sigma_a, const double& beta_sigma_b, const double& inv_gamma_ell_a, const double& inv_gamma_ell_b);
+RcppExport SEXP _bfg_sample_t_hypers(SEXP t_distancesSEXP, SEXP QySEXP, SEXP DySEXP, SEXP YSEXP, SEXP q_valSEXP, SEXP temperatureSEXP, SEXP mass_matrix_diagSEXP, SEXP epsilonSEXP, SEXP LSEXP, SEXP etaSEXP, SEXP beta_sigma_aSEXP, SEXP beta_sigma_bSEXP, SEXP inv_gamma_ell_aSEXP, SEXP inv_gamma_ell_bSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Eigen::MatrixXd >::type t_distances(t_distancesSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Qy(QySEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Dy(DySEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type q_val(q_valSEXP);
+    Rcpp::traits::input_parameter< const double& >::type temperature(temperatureSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type mass_matrix_diag(mass_matrix_diagSEXP);
+    Rcpp::traits::input_parameter< double >::type epsilon(epsilonSEXP);
+    Rcpp::traits::input_parameter< int >::type L(LSEXP);
+    Rcpp::traits::input_parameter< const double& >::type eta(etaSEXP);
+    Rcpp::traits::input_parameter< const double& >::type beta_sigma_a(beta_sigma_aSEXP);
+    Rcpp::traits::input_parameter< const double& >::type beta_sigma_b(beta_sigma_bSEXP);
+    Rcpp::traits::input_parameter< const double& >::type inv_gamma_ell_a(inv_gamma_ell_aSEXP);
+    Rcpp::traits::input_parameter< const double& >::type inv_gamma_ell_b(inv_gamma_ell_bSEXP);
+    rcpp_result_gen = Rcpp::wrap(sample_t_hypers(t_distances, Qy, Dy, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_sigma_a, beta_sigma_b, inv_gamma_ell_a, inv_gamma_ell_b));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sample_Z_hypers_and_noise
+Rcpp::List sample_Z_hypers_and_noise(const Eigen::MatrixXd& Qt, const Eigen::VectorXd& Dt, const Eigen::MatrixXd& Y, const Eigen::VectorXd& q_val, const double& temperature, const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, const double& eta, const double& beta_gamma_a, const double& beta_gamma_b, const double& dir_a, const double& beta_sigma_a, const double& beta_sigma_b);
+RcppExport SEXP _bfg_sample_Z_hypers_and_noise(SEXP QtSEXP, SEXP DtSEXP, SEXP YSEXP, SEXP q_valSEXP, SEXP temperatureSEXP, SEXP mass_matrix_diagSEXP, SEXP epsilonSEXP, SEXP LSEXP, SEXP etaSEXP, SEXP beta_gamma_aSEXP, SEXP beta_gamma_bSEXP, SEXP dir_aSEXP, SEXP beta_sigma_aSEXP, SEXP beta_sigma_bSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Qt(QtSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type Dt(DtSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type q_val(q_valSEXP);
+    Rcpp::traits::input_parameter< const double& >::type temperature(temperatureSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type mass_matrix_diag(mass_matrix_diagSEXP);
+    Rcpp::traits::input_parameter< double >::type epsilon(epsilonSEXP);
+    Rcpp::traits::input_parameter< int >::type L(LSEXP);
+    Rcpp::traits::input_parameter< const double& >::type eta(etaSEXP);
+    Rcpp::traits::input_parameter< const double& >::type beta_gamma_a(beta_gamma_aSEXP);
+    Rcpp::traits::input_parameter< const double& >::type beta_gamma_b(beta_gamma_bSEXP);
+    Rcpp::traits::input_parameter< const double& >::type dir_a(dir_aSEXP);
+    Rcpp::traits::input_parameter< const double& >::type beta_sigma_a(beta_sigma_aSEXP);
+    Rcpp::traits::input_parameter< const double& >::type beta_sigma_b(beta_sigma_bSEXP);
+    rcpp_result_gen = Rcpp::wrap(sample_Z_hypers_and_noise(Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a, beta_sigma_a, beta_sigma_b));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_bfg_clear_cache", (DL_FUNC) &_bfg_clear_cache, 0},
@@ -111,6 +159,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bfg_sample_f_hypers", (DL_FUNC) &_bfg_sample_f_hypers, 16},
     {"_bfg_sample_z_hypers", (DL_FUNC) &_bfg_sample_z_hypers, 13},
     {"_bfg_sample_f_hypers_SKIM", (DL_FUNC) &_bfg_sample_f_hypers_SKIM, 15},
+    {"_bfg_sample_t_hypers", (DL_FUNC) &_bfg_sample_t_hypers, 14},
+    {"_bfg_sample_Z_hypers_and_noise", (DL_FUNC) &_bfg_sample_Z_hypers_and_noise, 14},
     {NULL, NULL, 0}
 };
 

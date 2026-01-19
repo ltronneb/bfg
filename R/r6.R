@@ -13,7 +13,7 @@ MCMC = R6Class(
     data = NULL,
     iteration = NULL, # current iteration
     samples = NULL, # object for storing samples
-    initialize = function(N.iter = 1000,
+    initialize = function(N.iter = 2000,
                           N.params = NULL,
                           data = NULL,
                           init = NULL){
@@ -919,8 +919,8 @@ MHSamplerEll = R6Class("MH",
                            Z = t(Qg)%*%self$data$Y%*%Qt
                            Z_star = t(Qg)%*%self$data$Y%*%Qt_star
                            # Inverse solves
-                           inv_solve = sum((1/(Dt %*% t(Dg) + self$data$s2)) * t(Z^2))
-                           inv_solve_star = sum((1/(Dt_star %*% t(Dg) + self$data$s2)) * t(Z_star^2))
+                           inv_solve = sum((1/(Dg %*% t(Dt) + self$data$s2)) * (Z^2))
+                           inv_solve_star = sum((1/(Dg %*% t(Dt_star) + self$data$s2)) * (Z_star^2))
                            # Log determinants
                            log_det = sum(log(Dt %*% t(Dg) + self$data$s2))
                            log_det_star = sum(log(Dt_star %*% t(Dg) + self$data$s2))
@@ -1044,7 +1044,11 @@ MHSamplerSigma = R6Class("MH",
                            }
                          )
 )
-
+#' Gibbs sampler for sigma_sq
+#'
+#'@keywords internal
+#'@noRd
+#'@importFrom R6 R6Class
 GibbsSamplerVariance = R6Class("Gibbs",
                                inherit = MCMC,
                                public = list(
@@ -1062,10 +1066,361 @@ GibbsSamplerVariance = R6Class("Gibbs",
                                  sample = function(){
                                    S = sum((self$data$Y - (self$data$F + self$data$Z))^2)
                                    self$samples[self$iteration+1] = 1/rgamma(1,
-                                                                           shape = self$data$sigma_sq_a + self$data$n*self$data$m/2,
-                                                                           rate = self$data$sigma_sq_b + S/2)
+                                                                             shape = self$data$sigma_sq_a + self$data$n*self$data$m/2,
+                                                                             rate = self$data$sigma_sq_b + S/2)
                                    # And increase iteration
                                    self$iteration = self$iteration + 1
                                  }
+                               ),
+                               active = list(
+                                 sigma = function(){
+                                   return(sqrt(self$samples))
+                                 }
                                )
 )
+#' Joint Metropolis-Hastings sampler for ell and sigma
+#'
+#'@keywords internal
+#'@noRd
+#'@importFrom R6 R6Class
+MHSamplerSigmaEll = R6Class("MH",
+                            inherit = MCMC,
+                            public = list(
+                              initialize = function(Y, Kx, Kz, t, ell0, s0,
+                                                    prop_chol =  matrix(c(0.005,0.00,0,0.005),ncol=2),
+                                                    target_rate = 0.234, ...){
+                                super$initialize(...)
+                                self$data$Y = Y
+                                self$data$prop_chol = prop_chol
+                                self$data$Kx = Kx
+                                self$data$Kz = Kz
+                                self$data$t = t
+                                self$samples[1,] = c(ell0,s0)
+                                self$data$target_rate = target_rate
+                              },
+                              sample = function(){
+                                # First compute all the old stuff
+                                Ky = self$data$Kx + self$data$Kz
+                                Kt = private$Kt(ell=self$ell[self$iteration])
+                                eigKy = eigen(Ky + 1e-9*diag(nrow(Ky)))
+                                eigKt = eigen(Kt + 1e-9*diag(nrow(Kt)))
+                                # Now a proposal
+                                log_theta = log(self$samples[self$iteration,])
+                                log_theta_star = log_theta + MASS::mvrnorm(1,mu=c(0,0),Sigma=self$prop_sigma)
+                                log_ell = log_theta[1]
+                                log_sigma = log_theta[2]
+                                log_ell_star = log_theta_star[1]
+                                log_sigma_star = log_theta_star[2]
+                                sigma_sq = exp(2*log_sigma)
+                                sigma_sq_star = exp(2*log_sigma_star)
+                                ell_star = exp(log_ell_star)
+                                Kt_star = private$Kt(ell=ell_star)
+                                eigKt_star = eigen(Kt_star + 1e-9*diag(nrow(Kt_star)))
+                                # Acceptance ratio
+                                Qt = eigKt$vectors
+                                Qt_star = eigKt_star$vectors
+                                Dt = eigKt$values
+                                Dt_star = eigKt_star$values
+                                Qg = eigKy$vectors
+                                Dg = eigKy$values
+                                # Helper quantities
+                                Z = t(Qg)%*%self$data$Y%*%Qt
+                                Z_star = t(Qg)%*%self$data$Y%*%Qt_star
+                                # Inverse solves
+                                inv_solve = sum((1/(Dg %*% t(Dt) + sigma_sq)) * (Z^2))
+                                inv_solve_star = sum((1/(Dg %*% t(Dt_star) + sigma_sq_star)) * (Z_star^2))
+                                # Log determinants
+                                log_det = sum(log(Dt %*% t(Dg) + sigma_sq))
+                                log_det_star = sum(log(Dt_star %*% t(Dg) + sigma_sq_star))
+                                # Priors
+                                prior = -3.8 * log_ell - 12.7 / exp(log_ell)
+                                prior_star = -3.8 * log_ell_star - 12.7 / exp(log_ell_star)
+                                # Posteriors
+                                log_post = -0.5*(log_det + inv_solve) + prior
+                                log_post_star = -0.5*(log_det_star + inv_solve_star) + prior_star
+                                # Proposal Jacobian adjustment
+                                q_adj = log_ell_star - log_ell + 2*log_sigma_star - 2*log_sigma
+                                # Acceptance ratio
+                                log_acc = log_post_star - log_post + q_adj
+                                accept = is.finite(log_acc) && (log(runif(1)) < log_acc)
+                                acc = as.integer(accept)
+                                # Do we accept
+                                if (acc){
+                                  self$samples[self$iteration+1,] = exp(log_theta_star)
+                                } else {
+                                  self$samples[self$iteration+1,] = self$samples[self$iteration]
+                                }
+                                
+                                # Update proposal variance Robbins-Monro
+                                if (self$iteration < 1000){
+                                  c = 1
+                                  t0 = 50
+                                  a = 0.6
+                                  gamma_t = c / (self$iteration + t0)^a
+                                  # gamma_t = 1/self$iteration
+                                  self$data$prop_sigma = exp(log(self$data$prop_chol) + gamma_t * (acc - self$data$target_rate))
+                                }
+                                
+                                # And increase iteration
+                                self$iteration = self$iteration + 1
+                              }
+                            ),
+                            private = list(
+                              Kt = function(ell){
+                                # print(ell)
+                                t1 = as.matrix(self$data$t)
+                                t2 = as.matrix(self$data$t)
+                                n1 = nrow(t1)
+                                n2 = nrow(t2)
+                                K = matrix(NA,nrow=n1,ncol=n2)
+                                for (i in 1:n1){
+                                  for (j in 1:n2){
+                                    K[i,j] = exp(-0.5*abs(t1[i,]-t2[j,])^2/ell^2) # RBF
+                                  }
+                                }
+                                return(K+1e-9*diag(n1))
+                              }),
+                            active = list(
+                              ell = function(){
+                                return(self$samples[,1])
+                              },
+                              sigma = function(){
+                                return(self$samples[,2])
+                              },
+                              prop_sigma = function(){
+                                return(self$data$prop_chol%*%t(self$data$prop_chol))
+                              }
+                            )
+)
+
+
+#' HMC sampler with for Z hypers
+#'
+#'@keywords internal
+#'@noRd
+#'@importFrom R6 R6Class
+HMC_sampler_thetaT = R6Class("HMCSampler",
+                             inherit = HMC,
+                             public = list(
+                               sample = function(){
+                                 eigKy = private$.eigKy()
+                                 Qy = eigKy$vectors
+                                 Dy = eigKy$values
+                                 step = tryCatch(
+                                   sample_t_hypers(as.matrix(self$data$X),
+                                                   Qy, Dy,
+                                                   self$data$Y,
+                                                   self$samples[self$iteration,],
+                                                   self$data$temperature[self$iteration],
+                                                   self$control$mass_matrix, 
+                                                   self$current_epsilon,
+                                                   self$current_L,
+                                                   self$data$eta[self$iteration],
+                                                   self$data$beta_sigma_a,
+                                                   self$data$beta_sigma_b,
+                                                   self$data$inv_gamma_a,
+                                                   self$data$inv_gamma_b),
+                                   error = function(e) {
+                                     warning(paste0("Divergence! ", e))
+                                     # print(e)
+                                     NULL
+                                   }
+                                 )
+                                 reject = F
+                                 if (is.null(step)){
+                                   reject = T
+                                 } else{
+                                   if (any(is.infinite(exp(step$theta)))){
+                                     reject = T
+                                   }
+                                   if (any(abs(step$theta)>100)){
+                                     reject = T
+                                   }
+                                 }
+                                 if (reject){ # Reject
+                                   self$samples[self$iteration+1,] = self$samples[self$iteration,]
+                                   self$control$alpha[self$iteration+1] = 0
+                                   self$control$reject_counter = self$control$reject_counter + 1
+                                 } else{ # Accept
+                                   # print("Accepted!")
+                                   # print(step$theta)
+                                   self$samples[self$iteration+1,] = step$theta
+                                   self$control$alpha[self$iteration + 1] = step$accept_prob
+                                   self$control$reject_counter = 0
+                                 }
+                                 if (self$control$reject_counter > 5){
+                                   # Go back to a point where things worked
+                                   self$samples[self$iteration+1,] = self$samples[self$iteration-6,]
+                                 }
+                                 
+                                 # Adapt stuff
+                                 super$adapt()
+                               }
+                             ),
+                             active = list(
+                               n = function(){
+                                 self$N.params - 1
+                               },
+                               log_ell = function(){
+                                 self$samples[,1]
+                               },
+                               # log_sigma = function(){
+                               # self$samples[,2]
+                               # },
+                               ell = function(){
+                                 exp(self$log_ell)
+                               },
+                               sigma = function(){
+                                 sqrt(self$sigma_sq)
+                               },
+                               logit_u = function(){
+                                 self$samples[,2]
+                               },
+                               u = function(){
+                                 1/(1+exp(-self$logit_u))
+                               },
+                               omega = function(){
+                                 exp(self$logit_u)
+                               },
+                               sigma_sq = function(){
+                                 self$omega * self$data$eta
+                               }
+                             ),
+                             private = list(
+                               .Ky = function(){
+                                 # print("am I not here?")
+                                 Kx = self$data$Kx
+                                 # print(Kx)
+                                 Kz = self$data$Kz
+                                 # print(Kz)
+                                 # print(Kz + Kx)
+                                 return(Kx + Kz)
+                               },
+                               .eigKy = function(){
+                                 return(eigen(private$.Ky(),symmetric = T))
+                               }
+                             )
+)
+
+#' HMC sampler with for Z hypers
+#'
+#'@keywords internal
+#'@noRd
+#'@importFrom R6 R6Class
+HMC_samplerZ_noise = R6Class("HMCSampler",
+                             inherit = HMC,
+                             public = list(
+                               sample = function(){
+                                 eigKt = private$.eigKt()
+                                 Qt = eigKt$vectors
+                                 Dt = eigKt$values
+                                 step = tryCatch(
+                                   sample_Z_hypers_and_noise(Qt, Dt,
+                                                             self$data$Y,
+                                                             self$samples[self$iteration,], 
+                                                             self$data$temperature[self$iteration],
+                                                             self$control$mass_matrix, 
+                                                             self$current_epsilon,
+                                                             self$current_L,
+                                                             self$data$eta[self$iteration],
+                                                             self$data$beta_gamma_a,
+                                                             self$data$beta_gamma_b,
+                                                             self$data$dir_a,
+                                                             self$data$beta_sigma_a,
+                                                             self$data$beta_sigma_b
+                                   ),
+                                   error = function(e) {
+                                     warning(paste0("Divergence! ", e))
+                                     # print(e)
+                                     NULL
+                                   }
+                                 )
+                                 reject = F
+                                 if (is.null(step)){
+                                   reject = T
+                                 } else{
+                                   if (any(is.infinite(exp(step$theta)))){
+                                     reject = T
+                                   }
+                                   if (any(abs(step$theta)>100)){
+                                     reject = T
+                                   }
+                                 }
+                                 if (reject){ # Reject
+                                   self$samples[self$iteration+1,] = self$samples[self$iteration,]
+                                   self$control$alpha[self$iteration+1] = 0
+                                   self$control$reject_counter = self$control$reject_counter + 1
+                                 } else{ # Accept
+                                   self$samples[self$iteration+1,] = step$theta
+                                   self$control$alpha[self$iteration + 1] = step$accept_prob
+                                   self$control$reject_counter = 0
+                                 }
+                                 if (self$control$reject_counter > 5){
+                                   # Go back to a point where things worked
+                                   self$samples[self$iteration+1,] = self$samples[self$iteration-6,]
+                                 }
+                                 
+                                 # Adapt stuff
+                                 super$adapt()
+                               }
+                             ),
+                             active = list(
+                               n = function(){
+                                 self$N.params - 2
+                               },
+                               log_phi_tilde = function(){
+                                 self$samples[,1:self$n]
+                               },
+                               logit_u = function(){
+                                 self$samples[,(self$n + 1)]
+                               },
+                               log_sigma = function(){
+                                 self$samples[,(self$n + 2)]
+                               },
+                               sigma = function(){
+                                 exp(self$log_sigma)
+                               },
+                               sigma_sq = function(){
+                                 self$sigma^2
+                               },
+                               phi_tilde = function(){
+                                 exp(self$log_phi_tilde)
+                               },
+                               phi = function(){
+                                 sweep(self$phi_tilde,1,rowSums(self$phi_tilde),FUN="/")
+                               },
+                               u = function(){
+                                 1/(1+exp(-self$logit_u))
+                               },
+                               omega = function(){
+                                 exp(self$logit_u)
+                               },
+                               omega_scaled = function(){
+                                 self$omega * self$data$eta
+                               },
+                               gamma = function(){
+                                 sqrt(sweep(self$phi,1,self$omega_scaled,FUN="*"))
+                               }
+                             ),
+                             private = list(
+                               .Kt = function(){
+                                 t1 = as.matrix(self$data$t)
+                                 t2 = as.matrix(self$data$t)
+                                 n1 = nrow(t1)
+                                 n2 = nrow(t2)
+                                 K = matrix(NA,nrow=n1,ncol=n2)
+                                 for (i in 1:n1){
+                                   for (j in 1:n2){
+                                     K[i,j] = exp(-0.5*abs(t1[i,]-t2[j,])^2/self$data$ell^2)
+                                   }
+                                 }
+                                 return(K+1e-6*diag(n1))
+                               },
+                               .eigKt = function(){
+                                 return(eigen(private$.Kt(),symmetric = T))
+                               }
+                             )
+)
+
+
+
