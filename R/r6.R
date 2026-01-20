@@ -883,7 +883,7 @@ MHSamplerEll = R6Class("MH",
                        inherit = MCMC,
                        public = list(
                          initialize = function(Y, Kx, Kz, t, s2, ell0,
-                                               prop_sigma = 0.05,
+                                               prop_sigma = 0.5,
                                                target_rate = 0.44, ...){
                            super$initialize(...)
                            self$data$Y = Y
@@ -945,11 +945,11 @@ MHSamplerEll = R6Class("MH",
                            
                            # Update proposal variance Robbins-Monro
                            if (self$iteration < 1000){
-                             # c = 1
-                             # t0 = 50
-                             # a = 0.6
-                             # gamma_t = c / (self$iteration + t0)^a
-                             gamma_t = 1/self$iteration
+                             c = 1
+                             t0 = 50
+                             a = 0.6
+                             gamma_t = c / (self$iteration + t0)^a
+                             # gamma_t = 1/self$iteration
                              self$data$prop_sigma = exp(log(self$data$prop_sigma) + gamma_t * (acc - self$data$target_rate))
                            }
                            

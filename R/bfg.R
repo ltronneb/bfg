@@ -241,7 +241,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
     ############################################################################
     ell_sampler$data$Kx = F_sampler$Kx
     ell_sampler$data$Kz = Z_sampler$Kx
-    ell_sampler$data$s2 = Z_hypers$samples[i]
+    ell_sampler$data$s2 = Z_hypers$sigma_sq[i]
     ell_sampler$data$Y = working_Y
     ell_sampler$sample()
     # sigma_ell_sampler$data$Kx = F_sampler$Kx
