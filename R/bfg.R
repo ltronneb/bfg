@@ -102,7 +102,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
   # Set up samplers for Z
   # Temperature scheduler
   # temp = c(seq(0,floor(N.iter/2)-1)/floor(N.iter/2),rep(1,floor(N.iter/2)+2))
-  temp = c(pmin(1,0.0+(1-0.0)*seq(0,1,length.out=1000)^2),rep(1,floor(N.iter/2)+2))
+  temp = c(pmin(1,0.0+(1-0.0)*seq(0,1,length.out=100)^2),rep(1,floor(N.iter/2)+2000))
   # plot(temp)
   # temp = rep(1,N.iter)
   # Z_hypers = HMC_samplerZ$new(N.params = (n+1), data = list(X = diag(n),
@@ -119,7 +119,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
                                                                   temperature = temp,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
-                                                                  beta_gamma_a = 2, beta_gamma_b =  11, dir_a = 1,
+                                                                  beta_gamma_a = 1.7, beta_gamma_b =  8.42, dir_a = 1,
                                                                   beta_sigma_a = 1, beta_sigma_b = 1),
                                     N.iter = N.iter)
   # Z_hypers$samples[1,] = -2
