@@ -1,6 +1,14 @@
-#' Utils used for post-processing and extracting posterior summaries
+#' Function used to pull out estimated beta coefficients
 #'
+#' This function takes the fitted model as input and provides 
+#' posterior samples of the beta coefficients
 #' 
+#'
+#' @param fit : fitted model object
+#' @param k : tuple of indices of betas to pull out, i.e. c(1,2) for beta_1 and beta_2. Default NULL provides all coefficients
+#' @param N.samples : number of posterior samples (in range 1:N.iter), if NULL provides all samples
+#' 
+#' @return beta.hat : array of beta coefficients
 #' 
 #' @export
 get_beta = function(fit, k = NULL, N.samples = NULL){
