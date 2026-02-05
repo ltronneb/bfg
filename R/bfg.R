@@ -30,7 +30,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
   ell0 = median(abs(outer(t,t,FUN="-")))/2
   # ell0 = 0.1
   # print(ell0)
-  sigma0 = data_generated$sigma
+  sigma0 = sqrt(mean(apply(Y,1,var))/4)
   # F0 = working_Y
   Z0 = matrix(0,ncol=m,nrow=n)
   F0 = Z0
@@ -146,7 +146,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
   # #                                 prop_sigma = 0.005)
   # # Sampler for lengthscale
   ell_sampler = MHSamplerEll$new(Y = working_Y,Kx = F_sampler$Kx, Kz = Z_sampler$Kx, ell0 = ell0,
-                                 t = data_generated$T, 
+                                 t = t, 
                                  # s2 = s2_sampler$samples[1],
                                  s2 = Z_hypers$sigma_sq[1],
                                  prop_sigma = 0.005)
@@ -290,6 +290,14 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
     # # Update hypers in other samplers
     # F_sampler$data$sigma = s2_sampler$sigma[i]
     # Z_sampler$data$sigma = s2_sampler$sigma[i]
+    
+    ############################################################################
+    ############### Computing Betas ############################################
+    ############################################################################
+    if (compute_betas){
+      
+    }
+    
     
     
     # PLOTTING
