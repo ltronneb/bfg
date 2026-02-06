@@ -1325,9 +1325,7 @@ HMC_samplerZ_noise = R6Class("HMCSampler",
                                                              self$data$eta[self$iteration],
                                                              self$data$beta_gamma_a,
                                                              self$data$beta_gamma_b,
-                                                             self$data$dir_a,
-                                                             self$data$beta_sigma_a,
-                                                             self$data$beta_sigma_b
+                                                             self$data$dir_a
                                    ),
                                    error = function(e) {
                                      warning(paste0("Divergence! ", e))

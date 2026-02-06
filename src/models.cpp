@@ -1261,8 +1261,6 @@ T gp_kron_logpost_1d_re_noise(const Eigen::MatrixXd& Qt,
                               const double& beta_gamma_a,
                               const double& beta_gamma_b,
                               const double& dir_a,
-                              const double& beta_sigma_a,
-                              const double& beta_sigma_b,
                               const Eigen::Matrix<T, Eigen::Dynamic, 1>& q,
                               const bool first_step
 ){
@@ -1297,8 +1295,7 @@ T gp_kron_logpost_1d_re_noise(const Eigen::MatrixXd& Qt,
   // Tack on priors
   auto log_prior_log_phi_tilde = stan::math::gamma_lpdf(phi_tilde,dir_a,1) + sum(log_phi_tilde);
   auto log_prior_logit_u = stan::math::beta_lpdf(u, beta_gamma_a, beta_gamma_b) + log(u) + log1m(u);
-  // auto log_prior_log_sigma = stan::math::inv_gamma_lpdf(sigma,0.0,0.0) + log_sigma;
-  auto log_prior_log_sigma = 0.0;
+  auto log_prior_log_sigma = 0.0; // Flat prior in log-space
 
   // Log posterior returned
   auto logpost = temperature * loglik +
@@ -1322,9 +1319,7 @@ Rcpp::List sample_Z_hypers_and_noise(const Eigen::MatrixXd& Qt,
   const double& eta,
   const double& beta_gamma_a,
   const double& beta_gamma_b,
-  const double& dir_a,
-  const double& beta_sigma_a,
-  const double& beta_sigma_b){
+  const double& dir_a){
 
   using stan::math::var;
   using Eigen::VectorXd;
@@ -1334,7 +1329,6 @@ Rcpp::List sample_Z_hypers_and_noise(const Eigen::MatrixXd& Qt,
     return -gp_kron_logpost_1d_re_noise(Qt, Dt,
                                         Y, temperature, 
                                         eta, beta_gamma_a, beta_gamma_b, dir_a,
-                                        beta_sigma_a, beta_sigma_b,
                                         q_val, first_step);
   };
 

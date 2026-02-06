@@ -25,7 +25,7 @@ sample_t_hypers <- function(t_distances, Qy, Dy, Y, q_val, temperature, mass_mat
     .Call(`_bfg_sample_t_hypers`, t_distances, Qy, Dy, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_sigma_a, beta_sigma_b, inv_gamma_ell_a, inv_gamma_ell_b)
 }
 
-sample_Z_hypers_and_noise <- function(Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a, beta_sigma_a, beta_sigma_b) {
-    .Call(`_bfg_sample_Z_hypers_and_noise`, Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a, beta_sigma_a, beta_sigma_b)
+sample_Z_hypers_and_noise <- function(Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a) {
+    .Call(`_bfg_sample_Z_hypers_and_noise`, Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a)
 }
 

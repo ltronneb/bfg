@@ -9,9 +9,12 @@
 #'@param thinning : int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)
 #'@param N.iter : number of MCMC iterations (default 2000)
 #'@param plotting : bool, plot fitted curves and variable selection on the fly?
+#'@param compute_betas : bool, compute posterior samples of beta on the fly (not reccomended for large p)
 #'
 #'@export
-bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N.iter=2000, plotting=F){
+bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
+               interactions=F,thinning=1,N.iter=2000, 
+               plotting=F, compute_betas = F){
   # TODO check inputs are correctly formatted and dimensioned
   X = as.matrix(X)
   Y = as.matrix(Y)
@@ -101,31 +104,15 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
   
   # Set up samplers for Z
   # Temperature scheduler
-  # temp = c(seq(0,floor(N.iter/2)-1)/floor(N.iter/2),rep(1,floor(N.iter/2)+2))
-  temp = c(pmin(1,0.0+(1-0.0)*seq(0,1,length.out=100)^2),rep(1,floor(N.iter/2)+2000))
-  # plot(temp)
-  # temp = rep(1,N.iter)
-  # Z_hypers = HMC_samplerZ$new(N.params = (n+1), data = list(X = diag(n),
-  #                                                           t = t,
-  #                                                           Y = working_Y-F_sampler$samples[1,,],
-  #                                                           temperature = temp,
-  #                                                           nugget = 1e-06, ell = ell0,
-  #                                                           eta = eta0, 
-  #                                                           beta_a = 1, beta_b =  10, dir_a = 1),
-  #                             N.iter = N.iter)
+  temp = c(pmin(1,0.0+(1-0.0)*seq(0,1,length.out=500)^2),rep(1,floor(N.iter/2)+2000))
   Z_hypers = HMC_samplerZ_noise$new(N.params = (n+2), data = list(X = diag(n),
                                                                   t = t,
                                                                   Y = working_Y-F_sampler$samples[1,,],
                                                                   temperature = temp,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
-                                                                  beta_gamma_a = 1.7, beta_gamma_b =  8.42, dir_a = 1,
-                                                                  beta_sigma_a = 1, beta_sigma_b = 1),
+                                                                  beta_gamma_a = 1, beta_gamma_b =  20, dir_a = 1),
                                     N.iter = N.iter)
-  # Z_hypers$samples[1,] = -2
-  # Z_hypers$samples[1,n+2] = log(2*sigma0)
-  # print(Z_hypers$u[1])
-  # print(Z_hypers$gamma[1,])
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
                                                         Y=working_Y-F_sampler$samples[1,,],
@@ -136,41 +123,18 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
                                             N.iter = N.iter,
                                             thinning = thinning,
                                             Z_init = Z0)
-  # # Sampler for variance
-  # s2_sampler = GibbsSamplerVariance$new(n = n, m = m,s2_0=sigma0^2, sigma_sq_a = 0.1, sigma_sq_b = 0.1,
-  #                                       data = list(Y = working_Y, F = F_sampler$samples[1,,],
-  #                                                   Z = Z_sampler$samples[1,,]))
-  # print(s2_sampler$samples)
-  # # s2_sampler = MHSamplerSigma$new(Y = working_Y, F = F_sampler$samples[1,,], Z = Z_sampler$samples[1,,],
-  # #                                 s0 = sigma0,
-  # #                                 prop_sigma = 0.005)
   # # Sampler for lengthscale
   ell_sampler = MHSamplerEll$new(Y = working_Y,Kx = F_sampler$Kx, Kz = Z_sampler$Kx, ell0 = ell0,
                                  t = t, 
                                  # s2 = s2_sampler$samples[1],
                                  s2 = Z_hypers$sigma_sq[1],
                                  prop_sigma = 0.005)
-  # sigma_ell_sampler = MHSamplerSigmaEll$new(Y = working_Y, Kx = F_sampler$Kx, Kz = F_sampler$Kz,
-  #                                       t = data_generated$T,
-  #                                       ell0 = ell0, s0 = sigma0,
-  #                                       N.params = 2)
-  # I'll just set this up here
-  # t_diff = (outer(t,t,FUN="-")[,1,,1])^2
-  # eta_tilde_0 = rep(NA,N.iter)
-  # eta_tilde_0[1] = F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + mean(Z_hypers$gamma[1,]^2)
-  # print(t_diff)
-  # sigma_ell_sampler = HMC_sampler_thetaT$new(N.params = (2), data = list(X = t_diff,
-  #                                                                        t = t,
-  #                                                                        Y = working_Y,
-  #                                                                        temperature = temp, 
-  #                                                                        Kx = F_sampler$Kx, Kz = Z_sampler$Kx,
-  #                                                                        eta = eta_tilde_0,
-  #                                                                        beta_sigma_a = 1,
-  #                                                                        beta_sigma_b = 21,
-  #                                                                        inv_gamma_a = 3.8, inv_gamma_b = 12.7),
-  #                                            N.iter = N.iter)
-  # sigma_ell_sampler$samples[1,] = log(c(ell0,sigma0))
-  
+  # Container for betas
+  if (compute_betas){
+    beta.hat = array(0.0,dim=c(p,m,N.iter))
+  } else{
+    beta.hat = NULL
+  }
   
   # Now return the samplers and create an S4 object
   L = list(samplers = list(F_sampler=F_sampler, F_hypers=F_hypers,
@@ -181,10 +145,9 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
            data = list(Y=Y,X=X,t=t,tau0_prime=tau0_prime,
                        data_generated=data_generated,
                        interactions=interactions,thinning=thinning,
-                       N.iter=N.iter, plotting=plotting)
-  )
+                       N.iter=N.iter, plotting=plotting,warmup = floor(N.iter/2)),
+           beta.hat = beta.hat)
   on.exit(return(L))
-  # stop("test")
   # Now sampling starts
   # Start timer
   t1 = Sys.time()
@@ -244,16 +207,6 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
     ell_sampler$data$s2 = Z_hypers$sigma_sq[i]
     ell_sampler$data$Y = working_Y
     ell_sampler$sample()
-    # sigma_ell_sampler$data$Kx = F_sampler$Kx
-    # sigma_ell_sampler$data$Kz = Z_sampler$Kx
-    # sigma_ell_sampler$data$Y = working_Y
-    #sigma_ell_sampler$data$eta[i] = F_hypers$c[i]^2 + sum((F_hypers$tau[i]*F_hypers$lambda[i,])^2) + mean(Z_hypers$gamma[i,]^2) 
-    # sigma_ell_sampler$sample()
-    
-    # Variance explained
-    # gamma_mean = mean(Z_hypers$gamma[i,]^2)
-    # eta_ratio = sigma_ell_sampler$sigma_sq[i]/(gamma_mean + sigma_ell_sampler$sigma_sq[i])
-    # print(paste0("Variance explained by noise: ", round(100*eta_ratio,2),"%"))
     
     # Update hypers in other samplers
     F_hypers$data$ell = ell_sampler$ell[i]
@@ -280,22 +233,27 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,interactions=F,thinning=1,N
       # tmp = B%*%tmp
       # Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = tmp
     }
-    ############################################################################
-    ############### SAMPLING sigma_sq ##########################################
-    ############################################################################
-    # s2_sampler$data$F = F_sampler$samples[i,,]
-    # s2_sampler$data$Z = Z_sampler$samples[i,,]
-    # s2_sampler$data$Y = working_Y
-    # s2_sampler$sample()
-    # # Update hypers in other samplers
-    # F_sampler$data$sigma = s2_sampler$sigma[i]
-    # Z_sampler$data$sigma = s2_sampler$sigma[i]
     
     ############################################################################
-    ############### Computing Betas ############################################
+    ###############   COMPUTING BETA   #########################################
     ############################################################################
     if (compute_betas){
-      
+      eigKt = F_sampler$eigKt
+      fi = F_sampler$samples[i,,]
+      lambda = F_hypers$lambda[i,]
+      tau = F_hypers$tau[i]
+      Lt = t(t(eigKt$vectors)*sqrt(eigKt$values))
+      # Sample from prior
+      Z = matrix(rnorm(p*m),ncol=m,nrow=p)
+      B = (Z*(tau*lambda))%*%t(Lt)
+      # Prior sample from f | B is deterministic
+      f = X%*%B
+      # Now I have a joint sample from \pi(B,f), apply Matheron
+      Kx = F_sampler$Kx
+      Kx_star = (t(X)*(tau*lambda)^2) # TODO: This needs to look a bit different with interactions
+      error = fi - f 
+      correction = Kx_star%*%solve(Kx+1e-6*diag(nrow(Kx)),error)
+      L$beta.hat[,,i] = B + correction
     }
     
     

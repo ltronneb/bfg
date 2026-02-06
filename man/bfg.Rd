@@ -13,7 +13,8 @@ bfg(
   interactions = F,
   thinning = 1,
   N.iter = 2000,
-  plotting = F
+  plotting = F,
+  compute_betas = F
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ bfg(
 \item{N.iter}{: number of MCMC iterations (default 2000)}
 
 \item{plotting}{: bool, plot fitted curves and variable selection on the fly?}
+
+\item{compute_betas}{: bool, compute posterior samples of beta on the fly (not reccomended for large p)}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model
