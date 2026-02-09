@@ -13,10 +13,13 @@ MCMC = R6Class(
     data = NULL,
     iteration = NULL, # current iteration
     samples = NULL, # object for storing samples
+    h5file = NULL,
+    # has_h5file = FALSE,
     initialize = function(N.iter = 2000,
                           N.params = NULL,
                           data = NULL,
-                          init = NULL){
+                          init = NULL,
+                          h5file = NULL){
       self$N.iter = N.iter
       self$N.params = N.params
       self$data = data
@@ -27,6 +30,9 @@ MCMC = R6Class(
         if (!is.null(init)){
           self$samples[1,] = init
         } else {self$samples[1,] = runif(N.params,min=-2,max=2)}
+      }
+      if (!is.null(h5file)){
+        self$h5file <- h5file
       }
     }
   )
@@ -205,7 +211,7 @@ HMC = R6Class(
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-HMC_samplerF = R6Class("HMCSampler",
+HMC_samplerF = R6Class("F_hypers",
                        inherit = HMC,
                        public = list(
                          initialize = function(slab_scale = 4, slab_df = 4.0, 
@@ -215,6 +221,8 @@ HMC_samplerF = R6Class("HMCSampler",
                            self$data$slab_df = slab_df
                            self$data$nu_local = nu_local
                            self$data$nu_global = nu_global
+                           # Init h5 file here
+                           # handle this logic here
                          },
                          sample = function(){
                            eigKt = private$.eigKt()
@@ -319,7 +327,7 @@ HMC_samplerF = R6Class("HMCSampler",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-HMC_samplerZ = R6Class("HMCSampler",
+HMC_samplerZ = R6Class("Z_hypers",
                        inherit = HMC,
                        public = list(
                          sample = function(){
@@ -427,7 +435,7 @@ HMC_samplerZ = R6Class("HMCSampler",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-HMC_samplerSKIM = R6Class("HMCSampler",
+HMC_samplerSKIM = R6Class("F_hypers",
                           inherit = HMC_samplerF,
                           public = list(
                             sample = function(){
@@ -500,7 +508,7 @@ HMC_samplerSKIM = R6Class("HMCSampler",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-KroneckerMatheronSamplerF = R6Class("KroneckerMatheronSampler",
+KroneckerMatheronSamplerF = R6Class("F_sampler",
                                     # Samples from the posterior of a GP with Kronecker-structured covariance
                                     # using Matheron's rule.
                                     public = list(
@@ -511,21 +519,46 @@ KroneckerMatheronSamplerF = R6Class("KroneckerMatheronSampler",
                                       unthinned_samples = NULL,
                                       iteration = 1,
                                       data = NULL,
+                                      # Deal with local cache for eigendecomps
+                                      h5file = NULL,
+                                      h5Qx = NULL,
+                                      h5Dx = NULL,
+                                      h5Qt = NULL,
+                                      h5Dt = NULL,
                                       control = list(
                                         window_counter = 0, # counting windows
                                         reject_counter = 0 # count rejections
                                       ),
-                                      initialize = function(N.iter = 1000, N.params = NULL,
+                                      initialize = function(N.iter = 2000, N.params = NULL,
                                                             data = NULL, thinning = 10,
-                                                            F_init = NULL){
+                                                            init = NULL, h5file = NULL){
+                                        print("im initing!")
                                         self$N.iter = N.iter
                                         self$N.params = N.params
                                         self$unthinned_samples = array(NA,dim=c(N.iter*thinning,N.params))
                                         self$data = data
                                         self$thinning = thinning
-                                        self$unthinned_samples[1,,] = F_init
-                                        # self$sample() # Init this by sampling
-                                        self$iteration = 1 #overwrite the increase in init
+                                        self$unthinned_samples[1,,] = init
+                                        self$iteration = 1 # Current iteration
+                                        # H5 stuff
+                                        if (!is.null(h5file)){
+                                          self$h5file = h5file
+                                          self$h5file = self$h5file$create_group("F_sampler")
+                                          print("create_local file fine")
+                                          self$h5Qx = self$h5file$create_dataset(name="Qx",dims=c(N.iter,self$N.params[1],self$N.params[1]),
+                                                                                       chunk_dims = c(1,self$N.params[1],self$N.params[1]),
+                                                                                       dtype = h5types$double)
+                                          print("create datasets fine!")
+                                          self$h5Dx = self$h5file$create_dataset(name="Dx",dims=c(N.iter,self$N.params[1]),
+                                                                                       chunk_dims = c(1,self$N.params[1]),
+                                                                                       dtype = h5types$double)
+                                          self$h5Qt = self$h5file$create_dataset(name="Qt",dims=c(N.iter,self$N.params[2],self$N.params[2]),
+                                                                                       chunk_dims = c(1,self$N.params[2],self$N.params[2]),
+                                                                                       dtype = h5types$double)
+                                          self$h5Dt = self$h5file$create_dataset(name="Dt",dims=c(N.iter,self$N.params[2]),
+                                                                                       chunk_dims = c(1,self$N.params[2]),
+                                                                                       dtype = h5types$double)
+                                        }
                                       },
                                       sample = function(){
                                         # I'll create the kernels here as well and do everything
@@ -552,6 +585,14 @@ KroneckerMatheronSamplerF = R6Class("KroneckerMatheronSampler",
                                           eigKx = private$.cache$eigKx
                                           eigKg = private$.cache$eigKg
                                           eigKz = private$.cache$eigKz
+                                        }
+                                        
+                                        # And in any case we store local versions here
+                                        if (!is.null(self$h5file)){
+                                          self$h5Qx[self$iteration+1,,] = eigKx$vectors
+                                          self$h5Dx[self$iteration+1,] = eigKx$values
+                                          self$h5Qt[self$iteration+1,,] = eigKt$vectors
+                                          self$h5Dt[self$iteration+1,] = eigKt$values 
                                         }
                                         
                                         
@@ -695,7 +736,7 @@ KroneckerMatheronSamplerF = R6Class("KroneckerMatheronSampler",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-KroneckerMatheronSamplerZ = R6Class("KroneckerMatheronSampler",
+KroneckerMatheronSamplerZ = R6Class("Z_sampler",
                                     # Samples from the posterior of a GP with Kronecker-structured covariance
                                     # using Matheron's rule.
                                     public = list(
@@ -712,13 +753,13 @@ KroneckerMatheronSamplerZ = R6Class("KroneckerMatheronSampler",
                                       ),
                                       initialize = function(N.iter = 1000, N.params = NULL,
                                                             data = NULL, thinning = 10,
-                                                            Z_init = NULL){
+                                                            init = NULL){
                                         self$N.iter = N.iter
                                         self$N.params = N.params
                                         self$unthinned_samples = array(NA,dim=c(N.iter*thinning,N.params))
                                         self$data = data
                                         self$thinning = thinning
-                                        self$unthinned_samples[1,,] = Z_init
+                                        self$unthinned_samples[1,,] = init
                                         # self$sample() # Init this by sampling
                                         self$iteration = 1 # Current iteration
                                       },
@@ -855,7 +896,7 @@ KroneckerMatheronSamplerZ = R6Class("KroneckerMatheronSampler",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-KroneckerMatheronSamplerSKIM = R6Class("HMCSampler",
+KroneckerMatheronSamplerSKIM = R6Class("F_sampler",
                                        inherit = KroneckerMatheronSamplerF,
                                        active = list(
                                          Kx = function(){
@@ -879,7 +920,7 @@ KroneckerMatheronSamplerSKIM = R6Class("HMCSampler",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-MHSamplerEll = R6Class("MH",
+MHSamplerEll = R6Class("Ell_sampler",
                        inherit = MCMC,
                        public = list(
                          initialize = function(Y, Kx, Kz, t, s2, ell0,
@@ -983,7 +1024,7 @@ MHSamplerEll = R6Class("MH",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-MHSamplerSigma = R6Class("MH",
+MHSamplerSigma = R6Class("Sigma_sampler",
                          inherit = MCMC,
                          public = list(
                            initialize = function(Y, F, Z, s0,
@@ -1049,7 +1090,7 @@ MHSamplerSigma = R6Class("MH",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-GibbsSamplerVariance = R6Class("Gibbs",
+GibbsSamplerVariance = R6Class("sigmasq_sampler",
                                inherit = MCMC,
                                public = list(
                                  initialize = function(n, m,s2_0,
@@ -1083,7 +1124,7 @@ GibbsSamplerVariance = R6Class("Gibbs",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-MHSamplerSigmaEll = R6Class("MH",
+MHSamplerSigmaEll = R6Class("Sigma_ell_sampler",
                             inherit = MCMC,
                             public = list(
                               initialize = function(Y, Kx, Kz, t, ell0, s0,
@@ -1199,7 +1240,7 @@ MHSamplerSigmaEll = R6Class("MH",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-HMC_sampler_thetaT = R6Class("HMCSampler",
+HMC_sampler_thetaT = R6Class("theta_t_sampler",
                              inherit = HMC,
                              public = list(
                                sample = function(){
@@ -1307,7 +1348,7 @@ HMC_sampler_thetaT = R6Class("HMCSampler",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-HMC_samplerZ_noise = R6Class("HMCSampler",
+HMC_samplerZ_noise = R6Class("Z_hypers",
                              inherit = HMC,
                              public = list(
                                sample = function(){
@@ -1419,6 +1460,3 @@ HMC_samplerZ_noise = R6Class("HMCSampler",
                                }
                              )
 )
-
-
-

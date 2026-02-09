@@ -22,7 +22,7 @@ get_beta = function(fit, k = NULL, N.samples = NULL){
   }
   F_sampler = fit$samplers$F_sampler
   F_hypers = fit$samplers$F_hypers
-  ell_sampler = fit$samplers$ell_sampler
+  # ell_sampler = fit$samplers$ell_sampler
   # Which coefficients are we looking to pull out?
   if (is.null((k))){
     # Then we pull out everything
@@ -37,32 +37,40 @@ get_beta = function(fit, k = NULL, N.samples = NULL){
   for (kk in 1:k){
     E[kk,id[kk]] = 1
   }
+  # Set up cached eigen decomps
+  bfg_h5 = H5File$new(fit$h5file, mode="r")
+  F.grp = bfg_h5$open(("F_sampler"))
+  Qx = F.grp[["Qx"]]
+  Qt = F.grp[["Qt"]]
+  Dt = F.grp[["Dt"]]
+  Dx = F.grp[["Dx"]]
   # Now iterate from final sample
   for (ii in 1:N.samples){
+    # print(i)
     i = (N.iter-N.samples) + ii
     # Pull out current values
     fi = F_sampler$samples[i,,]
     lambda = F_hypers$lambda[i,]
     tau = F_hypers$tau[i]
-    c = F_hypers$c[i]
-    ell = ell_sampler$ell[i]
-    F_sampler$data$tau = tau
-    F_sampler$data$lambda = lambda
-    F_sampler$data$c = c
-    F_sampler$data$ell = ell
+    # c = F_hypers$c[i]
+    # ell = ell_sampler$ell[i]
+    Qti = Qt[i,,]
+    Dti = Dt[i,]
+    Qxi = Qx[i,,]
+    Dxi = Dx[i,]
     # Construct and decomp matrices
-    Kt = F_sampler$Kt
-    Lt = t(chol(Kt))
+    # Kt = F_sampler$Kt
+    # Lt = t(chol(Kt))
+    Lt = t(sqrt(Dti)*t(Qti))
     # Prior sample from B
     Z = matrix(rnorm(k*m),ncol=m,nrow=k)
     B = (Z*(tau*lambda)[id])%*%t(Lt)
     # Prior sample from f | B is deterministic
     f = X[,id]%*%B
     # Now I have a joint sample from \pi(B,f), apply Matheron
-    Kx = F_sampler$Kx
     Kx_star = E%*%(t(X)*(tau*lambda)^2) # TODO: This needs to look a bit different with interactions
     error = fi - f 
-    correction = Kx_star%*%solve(Kx+1e-6*diag(nrow(Kx)),error)
+    correction = Kx_star%*%t(1/Dxi*t(Qxi))%*%(t(Qxi)%*%error)
     beta.hat[ii,,] = B + correction
   }
   return(beta.hat)
@@ -91,7 +99,7 @@ select_betas = function(fit, max_model_size = 100, N.samples = NULL, plot=T){
   # Pick out most likely active coefs
   id_j = order(apply(F_hypers$lambda[warmup:N.iter,],2,mean),decreasing = T)[1:max_model_size]
   beta.hat = bfg::get_beta(fit,k = id_j,N.samples = N.samples)
-  beta.mean = apply(beta.hat,c(1,2),mean)
+  beta.mean = apply(beta.hat,c(2,3),mean,na.rm=T)
   # Pull out full model fit
   F.mean = apply(F_sampler$samples[warmup:N.iter,,],c(2,3),mean)
   # Set up design matrices

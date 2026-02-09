@@ -43,6 +43,12 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
   # Set up cache
   clear_cache()
   prepare_cache(X)
+  
+  # Set up hdf5r the samplers can use
+  bfg_file = tempfile(fileext = ".h5")
+  bfg_h5 = H5File$new(bfg_file,mode="w")
+  print(bfg_h5)
+  
   # Set up tau_prime
   tau0_prime = rep(NA,N.iter)
   tau0_prime[1:2] = tau0_prime0*sigma0
@@ -66,7 +72,8 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
                                               N.params = c(n,m),
                                               N.iter = F_hypers$N.iter,
                                               thinning = thinning,
-                                              F_init = F0)
+                                              init = F0,
+                                              h5file = bfg_h5)
   } else{
     F_hypers = HMC_samplerSKIM$new(N.params=2*p+5,data = list(X = X,
                                                               t = t, 
@@ -87,7 +94,8 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
                                                  N.params = c(n,m),
                                                  N.iter = F_hypers$N.iter,
                                                  thinning = thinning,
-                                                 F_init = F0)
+                                                 init = F0,
+                                                 h5file = bfg_h5)
   }
   
   # Found that it is generally good to init these samplers at large values,
@@ -122,7 +130,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
                                             N.params = c(n,m),
                                             N.iter = N.iter,
                                             thinning = thinning,
-                                            Z_init = Z0)
+                                            init = Z0)
   # # Sampler for lengthscale
   ell_sampler = MHSamplerEll$new(Y = working_Y,Kx = F_sampler$Kx, Kz = Z_sampler$Kx, ell0 = ell0,
                                  t = t, 
@@ -146,8 +154,11 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
                        data_generated=data_generated,
                        interactions=interactions,thinning=thinning,
                        N.iter=N.iter, plotting=plotting,warmup = floor(N.iter/2)),
-           beta.hat = beta.hat)
+           beta.hat = beta.hat,
+           h5file = bfg_file)
+  # On exit clause
   on.exit(return(L))
+  on.exit(bfg_h5$close_all(),add = TRUE)
   # Now sampling starts
   # Start timer
   t1 = Sys.time()
@@ -296,7 +307,8 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
   t2 = Sys.time()
   L$time_elapsed = t2 - t1
 }
-
-
-
-
+  
+  
+  
+  
+  
