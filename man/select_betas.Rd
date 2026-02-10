@@ -4,7 +4,13 @@
 \alias{select_betas}
 \title{Function for finding non-zero coefficient}
 \usage{
-select_betas(fit, max_model_size = 100, N.samples = NULL, plot = T)
+select_betas(
+  fit,
+  max_model_size = 100,
+  N_samples = NULL,
+  N_samples_weights = 10,
+  plot = T
+)
 }
 \description{
 This function applies the 'decoupling shrinkage and selection' (DSS) framework

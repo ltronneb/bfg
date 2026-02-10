@@ -4,14 +4,14 @@
 \alias{get_beta}
 \title{Function used to pull out estimated beta coefficients}
 \usage{
-get_beta(fit, k = NULL, N.samples = NULL)
+get_beta(fit, k = NULL, N_samples = NULL)
 }
 \arguments{
 \item{fit}{: fitted model object}
 
 \item{k}{: tuple of indices of betas to pull out, i.e. c(1,2) for beta_1 and beta_2. Default NULL provides all coefficients}
 
-\item{N.samples}{: number of posterior samples (in range 1:N.iter), if NULL provides all samples}
+\item{N_samples}{: number of posterior samples (in range 1:N.iter), if NULL provides all samples}
 }
 \value{
 beta.hat : array of beta coefficients

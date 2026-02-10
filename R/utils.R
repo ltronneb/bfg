@@ -6,12 +6,12 @@
 #'
 #' @param fit : fitted model object
 #' @param k : tuple of indices of betas to pull out, i.e. c(1,2) for beta_1 and beta_2. Default NULL provides all coefficients
-#' @param N.samples : number of posterior samples (in range 1:N.iter), if NULL provides all samples
+#' @param N_samples : number of posterior samples (in range 1:N.iter), if NULL provides all samples
 #' 
 #' @return beta.hat : array of beta coefficients
 #' 
 #' @export
-get_beta = function(fit, k = NULL, N.samples = NULL){
+get_beta = function(fit, k = NULL, N_samples = NULL){
   # Pull out some stuff
   X = fit$data$X
   p = ncol(X)
@@ -59,8 +59,6 @@ get_beta = function(fit, k = NULL, N.samples = NULL){
     Qxi = Qx[i,,]
     Dxi = Dx[i,]
     # Construct and decomp matrices
-    # Kt = F_sampler$Kt
-    # Lt = t(chol(Kt))
     Lt = t(sqrt(Dti)*t(Qti))
     # Prior sample from B
     Z = matrix(rnorm(k*m),ncol=m,nrow=k)
@@ -83,7 +81,7 @@ get_beta = function(fit, k = NULL, N.samples = NULL){
 #' of XXX, as adopted for functional data by Kowal 2020.
 #'
 #'@export
-select_betas = function(fit, max_model_size = 100, N.samples = NULL, plot=T){
+select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_weights = 10, plot=T){
   # Do some initial setup
   X = fit$data$X
   p = ncol(X)
@@ -98,7 +96,7 @@ select_betas = function(fit, max_model_size = 100, N.samples = NULL, plot=T){
   Z_hypers = fit$samplers$Z_hypers
   # Pick out most likely active coefs
   id_j = order(apply(F_hypers$lambda[warmup:N.iter,],2,mean),decreasing = T)[1:max_model_size]
-  beta.hat = bfg::get_beta(fit,k = id_j,N.samples = N.samples)
+  beta.hat = bfg::get_beta(fit,k = id_j,N.samples = N.samples_weights)
   beta.mean = apply(beta.hat,c(2,3),mean,na.rm=T)
   # Pull out full model fit
   F.mean = apply(F_sampler$samples[warmup:N.iter,,],c(2,3),mean)
@@ -147,7 +145,7 @@ select_betas = function(fit, max_model_size = 100, N.samples = NULL, plot=T){
   # Will collect some thigns here
   rho2_lam_quantiles = matrix(NA,ncol=LL,nrow=3)
   if (plot){
-    plot(NA,ylim=c(0,1),xlim=c(0,LL-1),xlab="Model Size")
+    plot(NA,ylim=c(0,1),xlim=c(0,max(model_size)-1),xlab="Model Size")
     abline(h=mean(rho2))
     abline(h=quantile(rho2,probs=c(0.05,0.95)))
   }
@@ -161,12 +159,14 @@ select_betas = function(fit, max_model_size = 100, N.samples = NULL, plot=T){
       segments(unq_size[l]-1,rr[1],unq_size[l]-1,rr[2])
     }
   }
-  n_selected = min(which(rho2_lam_quantiles[2,]>mean(rho2))) - 1 # Minus intercept
+  id_selected = min(which(rho2_lam_quantiles[2,]>mean(rho2)))
+  n_selected = unq_size[id_selected] - 1 # Minus intercept
   # Which ones selected?
-  opt_lam = rho2_lam_quantiles[3,n_selected+1]
+  opt_lam = rho2_lam_quantiles[3,id_selected]
   selected = sort(id_j[which(rowSums(beta_lam[opt_lam,-1,])!=0)])
-  print(paste0("DSS selected ", n_selected+1, " variables (including intercept)"))
+  print(paste0("DSS selected ", n_selected, " variables (including intercept)"))
   print("Selected coefficients:")
   print(selected)
+  return(list(selected = selected))
 }
 

@@ -13,19 +13,11 @@ sample_f_hypers <- function(X, Qt, Dt, F, gamma, tau0_prime_in, nugget_in, ell_i
     .Call(`_bfg_sample_f_hypers`, X, Qt, Dt, F, gamma, tau0_prime_in, nugget_in, ell_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global)
 }
 
-sample_z_hypers <- function(Qt, Dt, Z, temperature, nugget_in, eta, beta_a, beta_b, dir_a, q_val, mass_matrix_diag, epsilon, L) {
-    .Call(`_bfg_sample_z_hypers`, Qt, Dt, Z, temperature, nugget_in, eta, beta_a, beta_b, dir_a, q_val, mass_matrix_diag, epsilon, L)
-}
-
 sample_f_hypers_SKIM <- function(X, Qt, Dt, F, tau0_prime_in, nugget_in, ell_in, q_val, mass_matrix_diag, epsilon, L, slab_scale = 5.0, slab_df = 4.0, nu_local = 1L, nu_global = 1L) {
     .Call(`_bfg_sample_f_hypers_SKIM`, X, Qt, Dt, F, tau0_prime_in, nugget_in, ell_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global)
 }
 
-sample_t_hypers <- function(t_distances, Qy, Dy, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_sigma_a, beta_sigma_b, inv_gamma_ell_a, inv_gamma_ell_b) {
-    .Call(`_bfg_sample_t_hypers`, t_distances, Qy, Dy, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_sigma_a, beta_sigma_b, inv_gamma_ell_a, inv_gamma_ell_b)
-}
-
-sample_Z_hypers_and_noise <- function(Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a) {
-    .Call(`_bfg_sample_Z_hypers_and_noise`, Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a)
+sample_z_hypers_and_noise <- function(Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a) {
+    .Call(`_bfg_sample_z_hypers_and_noise`, Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a)
 }
 

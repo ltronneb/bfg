@@ -1356,7 +1356,7 @@ HMC_samplerZ_noise = R6Class("Z_hypers",
                                  Qt = eigKt$vectors
                                  Dt = eigKt$values
                                  step = tryCatch(
-                                   sample_Z_hypers_and_noise(Qt, Dt,
+                                   sample_z_hypers_and_noise(Qt, Dt,
                                                              self$data$Y,
                                                              self$samples[self$iteration,], 
                                                              self$data$temperature[self$iteration],

@@ -112,7 +112,8 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
   
   # Set up samplers for Z
   # Temperature scheduler
-  temp = c(pmin(1,0.0+(1-0.0)*seq(0,1,length.out=500)^2),rep(1,floor(N.iter/2)+2000))
+  temp = c(pmin(1,0.0+(1-0.0)*seq(0,1,length.out=500)^0),rep(1,floor(N.iter/2)+2000))
+  # temp = c(rep(0,200),seq(0,1,length.out=200)^2,rep(1,floor(N.iter/2)+2000))
   Z_hypers = HMC_samplerZ_noise$new(N.params = (n+2), data = list(X = diag(n),
                                                                   t = t,
                                                                   Y = working_Y-F_sampler$samples[1,,],
