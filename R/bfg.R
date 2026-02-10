@@ -240,10 +240,10 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
       Z_sampler$sample()
       
       # Sum-to-zero correction here
-      # B = diag(n) - 1/n*rep(1,n)%*%t(rep(1,n))
-      # tmp = Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
-      # tmp = B%*%tmp
-      # Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = tmp
+      B = diag(n) - 1/n*rep(1,n)%*%t(rep(1,n))
+      tmp = Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
+      tmp = B%*%tmp
+      Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = tmp
     }
     
     ############################################################################

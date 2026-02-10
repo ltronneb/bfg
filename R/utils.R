@@ -17,8 +17,8 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
   p = ncol(X)
   m = nrow(fit$data$t)
   N.iter = fit$data$N.iter
-  if (is.null(N.samples)){
-    N.samples = N.iter
+  if (is.null(N_samples)){
+    N_samples = N.iter
   }
   F_sampler = fit$samplers$F_sampler
   F_hypers = fit$samplers$F_hypers
@@ -31,7 +31,7 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
     id = k
   }
   k = length(id)
-  beta.hat = array(0.0,dim=c(N.samples,k,m))
+  beta.hat = array(0.0,dim=c(N_samples,k,m))
   # Set up matrix of coefficients to pull out
   E = matrix(0,ncol=p,nrow=k)
   for (kk in 1:k){
@@ -45,9 +45,9 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
   Dt = F.grp[["Dt"]]
   Dx = F.grp[["Dx"]]
   # Now iterate from final sample
-  for (ii in 1:N.samples){
+  for (ii in 1:N_samples){
     # print(i)
-    i = (N.iter-N.samples) + ii
+    i = (N.iter-N_samples) + ii
     # Pull out current values
     fi = F_sampler$samples[i,,]
     lambda = F_hypers$lambda[i,]
@@ -79,6 +79,14 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
 #'
 #' This function applies the 'decoupling shrinkage and selection' (DSS) framework
 #' of XXX, as adopted for functional data by Kowal 2020.
+#' 
+#' @param fit : bfg object
+#' @param max_model_size : the maximum size of the model
+#' @param N_samples : number of posterior samples used to compute rho
+#' @param N_samples_weights : number of posterior samples used to compute weights
+#' @param plot : boolean, display plot or not?
+#' 
+#' @return selected : list of selected coefficients
 #'
 #'@export
 select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_weights = 10, plot=T){
@@ -88,15 +96,15 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   m = nrow(fit$data$t)
   N.iter = fit$data$N.iter
   warmup = fit$data$warmup
-  if (is.null(N.samples)){
-    N.samples = N.iter
+  if (is.null(N_samples)){
+    N_samples = N.iter
   }
   F_sampler = fit$samplers$F_sampler
   F_hypers = fit$samplers$F_hypers
   Z_hypers = fit$samplers$Z_hypers
   # Pick out most likely active coefs
   id_j = order(apply(F_hypers$lambda[warmup:N.iter,],2,mean),decreasing = T)[1:max_model_size]
-  beta.hat = bfg::get_beta(fit,k = id_j,N.samples = N.samples_weights)
+  beta.hat = bfg::get_beta(fit,k = id_j,N_samples = N_samples_weights)
   beta.mean = apply(beta.hat,c(2,3),mean,na.rm=T)
   # Pull out full model fit
   F.mean = apply(F_sampler$samples[warmup:N.iter,,],c(2,3),mean)
@@ -108,9 +116,7 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   glmnet_fit = glmnet::glmnet(x=X_sub,y=F.mean,family="mgaussian",
                               penalty.factor = w,
                               alpha = 1,
-                              intercept = T,
-                              lambda.min.ratio = 0,
-                              nlambda = 100)
+                              intercept = T)
   # Pull out coefs and reshape
   beta_lam = glmnet_fit$beta
   L = length(glmnet_fit$lambda) # Just get the number of lambda coefficients
@@ -120,9 +126,9 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   }
   beta_lam = tmp
   # Now compute proportion of variance explained
-  rho2 = matrix(NA,nrow=N.samples,ncol=1)
-  rho2_lam = matrix(NA,nrow=N.samples,ncol=L)
-  for (ii in 1:N.samples){
+  rho2 = matrix(NA,nrow=N_samples,ncol=1)
+  rho2_lam = matrix(NA,nrow=N_samples,ncol=L)
+  for (ii in 1:N_samples){
     i = ii+warmup
     XB = F_sampler$samples[i,,]
     XB2 = sum((XB)^2)
@@ -142,7 +148,7 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   # Replot with model size as xlab
   unq_size = unique(model_size)
   LL = length(unq_size)
-  # Will collect some thigns here
+  # Will collect some things here
   rho2_lam_quantiles = matrix(NA,ncol=LL,nrow=3)
   if (plot){
     plot(NA,ylim=c(0,1),xlim=c(0,max(model_size)-1),xlab="Model Size")
@@ -159,12 +165,20 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
       segments(unq_size[l]-1,rr[1],unq_size[l]-1,rr[2])
     }
   }
-  id_selected = min(which(rho2_lam_quantiles[2,]>mean(rho2)))
-  n_selected = unq_size[id_selected] - 1 # Minus intercept
-  # Which ones selected?
-  opt_lam = rho2_lam_quantiles[3,id_selected]
+  # Check if a model reaches the threshold?
+  tresh_reached = which(rho2_lam_quantiles[2,]>=mean(rho2))
+  if (length(tresh_reached)==0){
+    # We were unable to reach threshold
+    n_selected = max(unq_size) - 1
+    opt_lam = rho2_lam_quantiles[3,LL]
+    print("DSS was unable to reach predictive performance of posterior mean!")
+  } else {
+    id_selected = min(tresh_reached)
+    n_selected = unq_size[id_selected] - 1 # Minus intercept
+    opt_lam = rho2_lam_quantiles[3,id_selected]
+  }
   selected = sort(id_j[which(rowSums(beta_lam[opt_lam,-1,])!=0)])
-  print(paste0("DSS selected ", n_selected, " variables (including intercept)"))
+  print(paste0("DSS selected ", n_selected, " variables (excluding intercept)"))
   print("Selected coefficients:")
   print(selected)
   return(list(selected = selected))

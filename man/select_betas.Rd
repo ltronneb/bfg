@@ -12,6 +12,20 @@ select_betas(
   plot = T
 )
 }
+\arguments{
+\item{fit}{: bfg object}
+
+\item{max_model_size}{: the maximum size of the model}
+
+\item{N_samples}{: number of posterior samples used to compute rho}
+
+\item{N_samples_weights}{: number of posterior samples used to compute weights}
+
+\item{plot}{: boolean, display plot or not?}
+}
+\value{
+selected : list of selected coefficients
+}
 \description{
 This function applies the 'decoupling shrinkage and selection' (DSS) framework
 of XXX, as adopted for functional data by Kowal 2020.
