@@ -10,11 +10,13 @@
 #'@param N.iter : number of MCMC iterations (default 2000)
 #'@param plotting : bool, plot fitted curves and variable selection on the fly?
 #'@param compute_betas : bool, compute posterior samples of beta on the fly (not reccomended for large p)
+#'@param verbose : bool, print messages from samplers?
 #'
 #'@export
-bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
+bfg = function(Y,X,t,p0,data_generated=NULL,
                interactions=F,thinning=1,N.iter=2000, 
-               plotting=F, compute_betas = F){
+               plotting=F, compute_betas = F,
+               verbose = F){
   # TODO check inputs are correctly formatted and dimensioned
   X = as.matrix(X)
   Y = as.matrix(Y)
@@ -30,26 +32,26 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
   p = ncol(X)
   m = length(t)
   n = nrow(Y)
+  
+  # Inits
   ell0 = median(abs(outer(t,t,FUN="-")))/2
-  # ell0 = 0.1
-  # print(ell0)
   sigma0 = sqrt(mean(apply(Y,1,var))/4)
-  # F0 = working_Y
   Z0 = matrix(0,ncol=m,nrow=n)
   F0 = Z0
   
+  # Set up tau0_prime0 for global scale parameter
+  tau0_prime0 = m*(p0/p)*(1/sqrt(n))
   
-  
-  # Set up cache
+  # Set up caches
   clear_cache()
   prepare_cache(X)
-  
-  # Set up hdf5r the samplers can use
+  # Set up hdf5r the samplers can use to write to file
   bfg_file = tempfile(fileext = ".h5")
   bfg_h5 = H5File$new(bfg_file,mode="w")
+  print("Temporary file set up:")
   print(bfg_h5)
   
-  # Set up tau_prime
+  # Set up tau_prime sequence
   tau0_prime = rep(NA,N.iter)
   tau0_prime[1:2] = tau0_prime0*sigma0
   # Set up samplers for F
@@ -59,7 +61,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
                                                            Y = F0,
                                                            tau0_prime = tau0_prime,
                                                            nugget = 1e-6, ell = ell0),
-                                N.iter = N.iter)
+                                N.iter = N.iter,verbose=verbose)
     F_sampler = KroneckerMatheronSamplerF$new(data = list(X=X,
                                                           t=t,
                                                           Y=working_Y,
@@ -80,7 +82,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
                                                               Y = F0,
                                                               tau0_prime = tau0_prime,
                                                               nugget = 1e-6, ell = ell0),
-                                   N.iter = N.iter)
+                                   N.iter = N.iter,verbose=verbose)
     F_sampler = KroneckerMatheronSamplerSKIM$new(data = list(X=X,
                                                              t=t,
                                                              Y=working_Y,
@@ -106,14 +108,13 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
     F_hypers$samples[1,2*p+5] = -10
   }
   
+  # Set up eta parameter for r2d2 prior
   eta0 = rep(NA,N.iter)
   eta0[1] = n*(F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + sigma0^2)
-  # eta0[1] = n*sigma0^2
   
   # Set up samplers for Z
   # Temperature scheduler
-  temp = c(pmin(1,0.0+(1-0.0)*seq(0,1,length.out=500)^0),rep(1,floor(N.iter/2)+2000))
-  # temp = c(rep(0,200),seq(0,1,length.out=200)^2,rep(1,floor(N.iter/2)+2000))
+  temp = rep(1,N.iter) # turn this off for now -- constant temperature
   Z_hypers = HMC_samplerZ_noise$new(N.params = (n+2), data = list(X = diag(n),
                                                                   t = t,
                                                                   Y = working_Y-F_sampler$samples[1,,],
@@ -121,7 +122,7 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
                                                                   beta_gamma_a = 1, beta_gamma_b =  20, dir_a = 1),
-                                    N.iter = N.iter)
+                                    N.iter = N.iter,verbose=verbose)
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
                                                         Y=working_Y-F_sampler$samples[1,,],
@@ -132,10 +133,9 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
                                             N.iter = N.iter,
                                             thinning = thinning,
                                             init = Z0)
-  # # Sampler for lengthscale
+  # Sampler for lengthscale
   ell_sampler = MHSamplerEll$new(Y = working_Y,Kx = F_sampler$Kx, Kz = Z_sampler$Kx, ell0 = ell0,
                                  t = t, 
-                                 # s2 = s2_sampler$samples[1],
                                  s2 = Z_hypers$sigma_sq[1],
                                  prop_sigma = 0.005)
   # Container for betas
@@ -196,7 +196,9 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
     # Print proportion of variance explained
     gamma_sum = sum(Z_hypers$gamma[i,]^2)
     eta_ratio = (gamma_sum)/(eta + gamma_sum)
-    print(paste0("Variance explained by random effects: ", round(100*eta_ratio,2),"%"))
+    if (verbose){
+      print(paste0("Variance explained by random effects: ", round(100*eta_ratio,2),"%"))
+    }
     
     # Set up hypers for F and Z
     F_sampler$data$c = F_hypers$c[i]
@@ -304,6 +306,14 @@ bfg = function(Y,X,t,tau0_prime0,data_generated=NULL,
       Sys.sleep(0.1)
       par(mfrow=c(1,1))
     }
+    #### Manage time expectations
+    if (i %% 100 == 0){
+      newtime = Sys.time()
+      dt = as.numeric(difftime(newtime,t1,units="secs"))
+      time_remaining = (dt / i)  * (N.iter-i)
+      print(paste0("Time remaining: ", round(time_remaining / 60, 2), " minutes"))
+    }
+    
   }
   t2 = Sys.time()
   L$time_elapsed = t2 - t1

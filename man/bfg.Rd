@@ -8,13 +8,14 @@ bfg(
   Y,
   X,
   t,
-  tau0_prime0,
+  p0,
   data_generated = NULL,
   interactions = F,
   thinning = 1,
   N.iter = 2000,
   plotting = F,
-  compute_betas = F
+  compute_betas = F,
+  verbose = F
 )
 }
 \arguments{
@@ -23,8 +24,6 @@ bfg(
 \item{X}{: n x p design matrix}
 
 \item{t}{: m vector of inputs}
-
-\item{tau0_prime0}{: scaling factor for the global horseshoe parameter}
 
 \item{data_generated}{: list returned by gen_data, for plotting simulations}
 
@@ -37,6 +36,10 @@ bfg(
 \item{plotting}{: bool, plot fitted curves and variable selection on the fly?}
 
 \item{compute_betas}{: bool, compute posterior samples of beta on the fly (not reccomended for large p)}
+
+\item{verbose}{: bool, print messages from samplers?}
+
+\item{tau0_prime0}{: scaling factor for the global horseshoe parameter}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model

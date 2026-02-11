@@ -14,12 +14,14 @@ MCMC = R6Class(
     iteration = NULL, # current iteration
     samples = NULL, # object for storing samples
     h5file = NULL,
+    verbose = F,
     # has_h5file = FALSE,
     initialize = function(N.iter = 2000,
                           N.params = NULL,
                           data = NULL,
                           init = NULL,
-                          h5file = NULL){
+                          h5file = NULL,
+                          verbose = NULL){
       self$N.iter = N.iter
       self$N.params = N.params
       self$data = data
@@ -33,6 +35,9 @@ MCMC = R6Class(
       }
       if (!is.null(h5file)){
         self$h5file <- h5file
+      }
+      if (!is.null(verbose)){
+        self$verbose = verbose
       }
     }
   )
@@ -156,10 +161,13 @@ HMC = R6Class(
       } else{
         self$control$L[self$iteration] = self$control$L[self$iteration-1]
       }
-      print(paste0("Sampling! ", "current epsilon = ", round(self$current_epsilon,4),
-                   " current L: ", self$current_L,
-                   " Acceptance probability: ", round(self$control$alpha[self$iteration],2),
-                   " iteration=",self$iteration-1))
+      if(self$verbose){
+        print(paste0("Sampling! ", "current epsilon = ", round(self$current_epsilon,4),
+                     " current L: ", self$current_L,
+                     " Acceptance probability: ", round(self$control$alpha[self$iteration],2),
+                     " iteration=",self$iteration-1))
+      }
+      
       
       # Check if we are changing phases
       if (self$iteration %in% self$control$phases){
@@ -176,12 +184,15 @@ HMC = R6Class(
           self$control$adapt_epsilon = F
           self$control$adapt_L = F
         }
-        
-        print("Next phase!")
+        if (self$verbose){
+          print("Next phase!")
+        }
         # Reset some stuff for estimation of epsilon
         # (as long as we are still adapting this)
         if (self$control$adapt & self$control$adapt_epsilon){
-          print("Epsilon stuff reset")
+          if (self$verbose){
+            print("Epsilon stuff reset")
+          }
           self$control$x = log(self$control$epsilon[1]) # epsilon0
           self$control$mu = log(10*self$control$epsilon[1]) # epsilon0
           self$control$xbar = self$control$x
@@ -191,7 +202,6 @@ HMC = R6Class(
         
         # Estimate mass matrix using buffer
         if (self$control$adapt & self$control$adapt_mass){
-          # print(paste0("old mass_matrix: ", self$control$mass_matrix))
           self$control$window_counter = self$control$window_counter + 1
           n_samples = self$control$window[self$control$window_counter]
           # Estimate covariance of window data
@@ -532,7 +542,6 @@ KroneckerMatheronSamplerF = R6Class("F_sampler",
                                       initialize = function(N.iter = 2000, N.params = NULL,
                                                             data = NULL, thinning = 10,
                                                             init = NULL, h5file = NULL){
-                                        print("im initing!")
                                         self$N.iter = N.iter
                                         self$N.params = N.params
                                         self$unthinned_samples = array(NA,dim=c(N.iter*thinning,N.params))
@@ -544,11 +553,9 @@ KroneckerMatheronSamplerF = R6Class("F_sampler",
                                         if (!is.null(h5file)){
                                           self$h5file = h5file
                                           self$h5file = self$h5file$create_group("F_sampler")
-                                          print("create_local file fine")
                                           self$h5Qx = self$h5file$create_dataset(name="Qx",dims=c(N.iter,self$N.params[1],self$N.params[1]),
                                                                                        chunk_dims = c(1,self$N.params[1],self$N.params[1]),
                                                                                        dtype = h5types$double)
-                                          print("create datasets fine!")
                                           self$h5Dx = self$h5file$create_dataset(name="Dx",dims=c(N.iter,self$N.params[1]),
                                                                                        chunk_dims = c(1,self$N.params[1]),
                                                                                        dtype = h5types$double)
@@ -564,7 +571,6 @@ KroneckerMatheronSamplerF = R6Class("F_sampler",
                                         # I'll create the kernels here as well and do everything
                                         # First thing we do is check if hypers are changed
                                         if (self$hypers_changed){
-                                          # print("shouldn't be here often")
                                           eigKt = self$eigKt
                                           eigKx = self$eigKx
                                           eigKg = self$eigKg
@@ -767,7 +773,6 @@ KroneckerMatheronSamplerZ = R6Class("Z_sampler",
                                         # I'll create the kernels here as well and do everything
                                         # First thing we do is check if hypers are changed
                                         if (self$hypers_changed){
-                                          # print("shouldn't be here often")
                                           eigKt = self$eigKt
                                           eigKx = self$eigKx
                                           # And I'll store them in cache
@@ -809,7 +814,6 @@ KroneckerMatheronSamplerZ = R6Class("Z_sampler",
                                           },
                                           error = function(e) {
                                             warning(paste0("Error in Matheron step! ", e))
-                                            # print(e)
                                             NULL
                                           }
                                         )
@@ -1000,7 +1004,6 @@ MHSamplerEll = R6Class("Ell_sampler",
                        ),
                        private = list(
                          Kt = function(ell){
-                           # print(ell)
                            t1 = as.matrix(self$data$t)
                            t2 = as.matrix(self$data$t)
                            n1 = nrow(t1)
@@ -1050,11 +1053,7 @@ MHSamplerSigma = R6Class("Sigma_sampler",
                              # MH ratio
                              log_acc = -(prod(dim(self$data$Y))+2*self$data$sigma_sq_a)*(log_sigma_star - log_sigma) -
                                (0.5*self$S+self$data$sigma_sq_b)*(exp(-2*log_sigma_star)-exp(-2*log_sigma))
-                             # print(log_acc)
-                             # acc_ratio = min(1,exp(log_acc))
-                             # acc = rbinom(1,1,acc_ratio)
                              acc = as.integer(log(runif(1))<log_acc)
-                             # print(paste0("MH acce prob: ", round(acc,4)))
                              # Do we accept
                              if (acc){
                                self$samples[self$iteration+1] = exp(log_sigma_star)
@@ -1208,7 +1207,6 @@ MHSamplerSigmaEll = R6Class("Sigma_ell_sampler",
                             ),
                             private = list(
                               Kt = function(ell){
-                                # print(ell)
                                 t1 = as.matrix(self$data$t)
                                 t2 = as.matrix(self$data$t)
                                 n1 = nrow(t1)
@@ -1263,7 +1261,6 @@ HMC_sampler_thetaT = R6Class("theta_t_sampler",
                                                    self$data$inv_gamma_b),
                                    error = function(e) {
                                      warning(paste0("Divergence! ", e))
-                                     # print(e)
                                      NULL
                                    }
                                  )
@@ -1283,8 +1280,6 @@ HMC_sampler_thetaT = R6Class("theta_t_sampler",
                                    self$control$alpha[self$iteration+1] = 0
                                    self$control$reject_counter = self$control$reject_counter + 1
                                  } else{ # Accept
-                                   # print("Accepted!")
-                                   # print(step$theta)
                                    self$samples[self$iteration+1,] = step$theta
                                    self$control$alpha[self$iteration + 1] = step$accept_prob
                                    self$control$reject_counter = 0
@@ -1329,12 +1324,8 @@ HMC_sampler_thetaT = R6Class("theta_t_sampler",
                              ),
                              private = list(
                                .Ky = function(){
-                                 # print("am I not here?")
                                  Kx = self$data$Kx
-                                 # print(Kx)
                                  Kz = self$data$Kz
-                                 # print(Kz)
-                                 # print(Kz + Kx)
                                  return(Kx + Kz)
                                },
                                .eigKy = function(){
