@@ -6,7 +6,7 @@
 #'
 #' @param fit : fitted model object
 #' @param k : tuple of indices of betas to pull out, i.e. c(1,2) for beta_1 and beta_2. Default NULL provides all coefficients
-#' @param N_samples : number of posterior samples (in range 1:N.iter), if NULL provides all samples
+#' @param N_samples : number of posterior samples (in range 1:N_iter), if NULL provides all samples
 #' 
 #' @return beta.hat : array of beta coefficients
 #' 
@@ -16,9 +16,9 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
   X = fit$data$X
   p = ncol(X)
   m = nrow(fit$data$t)
-  N.iter = fit$data$N.iter
+  N_iter = fit$data$N_iter
   if (is.null(N_samples)){
-    N_samples = N.iter
+    N_samples = N_iter
   }
   F_sampler = fit$samplers$F_sampler
   F_hypers = fit$samplers$F_hypers
@@ -47,7 +47,7 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
   # Now iterate from final sample
   for (ii in 1:N_samples){
     # print(i)
-    i = (N.iter-N_samples) + ii
+    i = (N_iter-N_samples) + ii
     # Pull out current values
     fi = F_sampler$samples[i,,]
     lambda = F_hypers$lambda[i,]
@@ -94,20 +94,20 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   X = fit$data$X
   p = ncol(X)
   m = nrow(fit$data$t)
-  N.iter = fit$data$N.iter
+  N_iter = fit$data$N_iter
   warmup = fit$data$warmup
   if (is.null(N_samples)){
-    N_samples = N.iter
+    N_samples = N_iter
   }
   F_sampler = fit$samplers$F_sampler
   F_hypers = fit$samplers$F_hypers
   Z_hypers = fit$samplers$Z_hypers
   # Pick out most likely active coefs
-  id_j = order(apply(F_hypers$lambda[warmup:N.iter,],2,mean),decreasing = T)[1:max_model_size]
+  id_j = order(apply(F_hypers$lambda[warmup:N_iter,],2,mean),decreasing = T)[1:max_model_size]
   beta.hat = bfg::get_beta(fit,k = id_j,N_samples = N_samples_weights)
   beta.mean = apply(beta.hat,c(2,3),mean,na.rm=T)
   # Pull out full model fit
-  F.mean = apply(F_sampler$samples[warmup:N.iter,,],c(2,3),mean)
+  F.mean = apply(F_sampler$samples[warmup:N_iter,,],c(2,3),mean)
   # Set up design matrices
   w = 1/rowSums(beta.mean^2)
   X_sub = X[,id_j]

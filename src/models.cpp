@@ -556,7 +556,7 @@ stan::math::var gp_1dloglik_analyticgrad_SKIM(const Eigen::MatrixXd& X,
   // Compute kernel matrix
   Eigen::MatrixXd xlxt = compute_XLambdaXt_core(cache.X_rcpp,diag);
   Eigen::MatrixXd x2lx2t = compute_XLambdaXt_core(cache.X_sq_rcpp,diag);
-  Eigen::MatrixXd xlxt_poly = (xlxt.array() + 1.0).array().square();
+  Eigen::MatrixXd xlxt_poly = (xlxt.array() + 1.0).array().square().matrix();
   Eigen::MatrixXd K_val = (0.5 * tau2 * tau2 * xlxt_poly).array() - 
     (0.5 * tau2 * tau2)*x2lx2t.array() + (tau1 * tau1 - tau2 * tau2)*xlxt.array();
   K_val.array() += (c * c) - (0.5 * tau2 * tau2);
@@ -615,7 +615,7 @@ stan::math::var gp_1dloglik_analyticgrad_SKIM(const Eigen::MatrixXd& X,
     log_det_grad(2+j) = scale * ((tau2 * tau2)*xj.dot(KPOLY * xj) - (0.5*tau2*tau2)*xj_sq.dot(xj_sq_solve) + (tau1 * tau1 - tau2 * tau2)*xj.dot(xj_solve));
     // build tau gradients iteratively
     log_det_grad_tau1 += 2.0 * tau1 * (lambda(j) * lambda(j)) * xj.dot(xj_solve);
-    log_det_grad_tau2 -= (lambda(j) * lambda(j)) * xj.dot(xj_solve) + 2.0*(lambda(j) * lambda(j))*xj_sq.dot(xj_sq_solve);
+    log_det_grad_tau2 -= 2.0 * (lambda(j) * lambda(j)) * xj.dot(xj_solve) + (lambda(j) * lambda(j))*xj_sq.dot(xj_sq_solve);
   }
   // wrt tau1
   {

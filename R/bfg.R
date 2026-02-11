@@ -83,6 +83,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                               tau0_prime = tau0_prime,
                                                               nugget = 1e-6, ell = ell0),
                                    N_iter = N_iter,verbose=verbose)
+
     F_sampler = KroneckerMatheronSamplerSKIM$new(data = list(X=X,
                                                              t=t,
                                                              Y=working_Y,
@@ -105,7 +106,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   F_hypers$samples[1,] = 2
   if (interactions){
     # but also for the interactions init with no interactions active
-    F_hypers$samples[1,2*p+5] = -10
+    F_hypers$samples[1,2*p+5] = 0
   }
   
   # Set up eta parameter for r2d2 prior
@@ -115,7 +116,8 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   # Set up samplers for Z
   # Temperature scheduler
   temp = rep(1,N_iter) # turn this off for now -- constant temperature
-  # temp = c(seq(0,1,length.out=100)^2,rep(1,N_iter-100))
+  # temp = c(seq(0,1,length.out=1000)^4,rep(1,N_iter-1000))
+  # temp = c(rep(0,100),rep(1,N.iter-100))
   Z_hypers = HMC_samplerZ_noise$new(N_params = (n+2), data = list(X = diag(n),
                                                                   t = t,
                                                                   Y = working_Y-F_sampler$samples[1,,],
