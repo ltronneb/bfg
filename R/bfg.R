@@ -7,14 +7,14 @@
 #'@param data_generated : list returned by gen_data, for plotting simulations
 #'@param interactions : bool, estimate model with interactions? (default F)
 #'@param thinning : int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)
-#'@param N.iter : number of MCMC iterations (default 2000)
+#'@param N_iter : number of MCMC iterations (default 2000)
 #'@param plotting : bool, plot fitted curves and variable selection on the fly?
 #'@param compute_betas : bool, compute posterior samples of beta on the fly (not reccomended for large p)
 #'@param verbose : bool, print messages from samplers?
 #'
 #'@export
 bfg = function(Y,X,t,p0,data_generated=NULL,
-               interactions=F,thinning=1,N.iter=2000, 
+               interactions=F,thinning=1,N_iter=2000, 
                plotting=F, compute_betas = F,
                verbose = F){
   # TODO check inputs are correctly formatted and dimensioned
@@ -52,16 +52,16 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   print(bfg_h5)
   
   # Set up tau_prime sequence
-  tau0_prime = rep(NA,N.iter)
+  tau0_prime = rep(NA,N_iter)
   tau0_prime[1:2] = tau0_prime0*sigma0
   # Set up samplers for F
   if (!interactions){
-    F_hypers = HMC_samplerF$new(N.params=2*p+4,data = list(X = X,
+    F_hypers = HMC_samplerF$new(N_params=2*p+4,data = list(X = X,
                                                            t = t, 
                                                            Y = F0,
                                                            tau0_prime = tau0_prime,
                                                            nugget = 1e-6, ell = ell0),
-                                N.iter = N.iter,verbose=verbose)
+                                N_iter = N_iter,verbose=verbose)
     F_sampler = KroneckerMatheronSamplerF$new(data = list(X=X,
                                                           t=t,
                                                           Y=working_Y,
@@ -71,18 +71,18 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                           lambda = F_hypers$lambda[1,],
                                                           gamma = rep(0,n),
                                                           sigma = sigma0),
-                                              N.params = c(n,m),
-                                              N.iter = F_hypers$N.iter,
+                                              N_params = c(n,m),
+                                              N_iter = F_hypers$N_iter,
                                               thinning = thinning,
                                               init = F0,
                                               h5file = bfg_h5)
   } else{
-    F_hypers = HMC_samplerSKIM$new(N.params=2*p+5,data = list(X = X,
+    F_hypers = HMC_samplerSKIM$new(N_params=2*p+5,data = list(X = X,
                                                               t = t, 
                                                               Y = F0,
                                                               tau0_prime = tau0_prime,
                                                               nugget = 1e-6, ell = ell0),
-                                   N.iter = N.iter,verbose=verbose)
+                                   N_iter = N_iter,verbose=verbose)
     F_sampler = KroneckerMatheronSamplerSKIM$new(data = list(X=X,
                                                              t=t,
                                                              Y=working_Y,
@@ -93,8 +93,8 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                              lambda = F_hypers$lambda[1,],
                                                              gamma = rep(0,n),
                                                              sigma = sigma0),
-                                                 N.params = c(n,m),
-                                                 N.iter = F_hypers$N.iter,
+                                                 N_params = c(n,m),
+                                                 N_iter = F_hypers$N_iter,
                                                  thinning = thinning,
                                                  init = F0,
                                                  h5file = bfg_h5)
@@ -109,28 +109,29 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   }
   
   # Set up eta parameter for r2d2 prior
-  eta0 = rep(NA,N.iter)
+  eta0 = rep(NA,N_iter)
   eta0[1] = n*(F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + sigma0^2)
   
   # Set up samplers for Z
   # Temperature scheduler
-  temp = rep(1,N.iter) # turn this off for now -- constant temperature
-  Z_hypers = HMC_samplerZ_noise$new(N.params = (n+2), data = list(X = diag(n),
+  temp = rep(1,N_iter) # turn this off for now -- constant temperature
+  # temp = c(seq(0,1,length.out=100)^2,rep(1,N_iter-100))
+  Z_hypers = HMC_samplerZ_noise$new(N_params = (n+2), data = list(X = diag(n),
                                                                   t = t,
                                                                   Y = working_Y-F_sampler$samples[1,,],
                                                                   temperature = temp,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
                                                                   beta_gamma_a = 1, beta_gamma_b =  20, dir_a = 1),
-                                    N.iter = N.iter,verbose=verbose)
+                                    N_iter = N_iter,verbose=verbose)
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
                                                         Y=working_Y-F_sampler$samples[1,,],
                                                         ell = ell0,
                                                         gamma = Z_hypers$gamma[1,],
                                                         sigma = sigma0),
-                                            N.params = c(n,m),
-                                            N.iter = N.iter,
+                                            N_params = c(n,m),
+                                            N_iter = N_iter,
                                             thinning = thinning,
                                             init = Z0)
   # Sampler for lengthscale
@@ -140,7 +141,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                  prop_sigma = 0.005)
   # Container for betas
   if (compute_betas){
-    beta.hat = array(0.0,dim=c(p,m,N.iter))
+    beta.hat = array(0.0,dim=c(p,m,N_iter))
   } else{
     beta.hat = NULL
   }
@@ -154,7 +155,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
            data = list(Y=Y,X=X,t=t,tau0_prime=tau0_prime,
                        data_generated=data_generated,
                        interactions=interactions,thinning=thinning,
-                       N.iter=N.iter, plotting=plotting,warmup = floor(N.iter/2)),
+                       N_iter=N_iter, plotting=plotting,warmup = floor(N_iter/2)),
            beta.hat = beta.hat,
            h5file = bfg_file)
   # On exit clause
@@ -163,7 +164,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   # Now sampling starts
   # Start timer
   t1 = Sys.time()
-  for (i in 2:N.iter){
+  for (i in 2:N_iter){
     ############################################################################
     ###############  IMPUTING Y     ############################################
     ############################################################################
@@ -310,7 +311,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
     if (i %% 100 == 0){
       newtime = Sys.time()
       dt = as.numeric(difftime(newtime,t1,units="secs"))
-      time_remaining = (dt / i)  * (N.iter-i)
+      time_remaining = (dt / i)  * (N_iter-i)
       print(paste0("Time remaining: ", round(time_remaining / 60, 2), " minutes"))
     }
     

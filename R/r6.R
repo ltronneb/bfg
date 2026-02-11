@@ -8,30 +8,30 @@
 MCMC = R6Class(
   "MCMC",
   public = list(
-    N.iter = NULL, # number of iterations
-    N.params = NULL, # number of parameters
+    N_iter = NULL, # number of iterations
+    N_params = NULL, # number of parameters
     data = NULL,
     iteration = NULL, # current iteration
     samples = NULL, # object for storing samples
     h5file = NULL,
     verbose = F,
     # has_h5file = FALSE,
-    initialize = function(N.iter = 2000,
-                          N.params = NULL,
+    initialize = function(N_iter = 2000,
+                          N_params = NULL,
                           data = NULL,
                           init = NULL,
                           h5file = NULL,
                           verbose = NULL){
-      self$N.iter = N.iter
-      self$N.params = N.params
+      self$N_iter = N_iter
+      self$N_params = N_params
       self$data = data
       self$iteration = 1
-      self$samples = array(NA, dim=c(N.iter,N.params))
+      self$samples = array(NA, dim=c(N_iter,N_params))
       # Init
-      if (!is.null(N.params)){
+      if (!is.null(N_params)){
         if (!is.null(init)){
           self$samples[1,] = init
-        } else {self$samples[1,] = runif(N.params,min=-2,max=2)}
+        } else {self$samples[1,] = runif(N_params,min=-2,max=2)}
       }
       if (!is.null(h5file)){
         self$h5file <- h5file
@@ -83,8 +83,8 @@ HMC = R6Class(
       window_counter = 0, # counting windows
       reject_counter = 0 # count rejections
     ),
-    initialize = function(#N.iter = 1000,
-      #N.params = NULL,
+    initialize = function(#N_iter = 1000,
+      #N_params = NULL,
       #data = NULL,
       control = NULL,
       #init = NULL,
@@ -100,8 +100,8 @@ HMC = R6Class(
       # Now init super
       super$initialize(...)
       # And check that the number of iterations is larger than warmup
-      if (self$N.iter < self$control$warmup){
-        print(paste0("N.iter must be larger than ", self$control$warmup))
+      if (self$N_iter < self$control$warmup){
+        print(paste0("N_iter must be larger than ", self$control$warmup))
         stop()
       }
       
@@ -112,15 +112,15 @@ HMC = R6Class(
       }
       if (!is.null(self$data$t)){self$data$tlist = lapply(1:nrow(self$data$t), function(i) matrix(self$data$t[i, ], ncol = 1))}
       # Containers
-      self$control$L = rep(0.0, self$N.iter)
-      self$control$epsilon = rep(0.0, self$N.iter)
-      self$control$alpha = rep(0.0, self$N.iter)
+      self$control$L = rep(0.0, self$N_iter)
+      self$control$epsilon = rep(0.0, self$N_iter)
+      self$control$alpha = rep(0.0, self$N_iter)
       # Initialise
       self$control$L[1] = L0
       self$control$epsilon[1] = epsilon0
       self$control$alpha[1] = alpha0
-      if (!is.null(self$N.params)){
-        self$control$mass_matrix = rep(1,self$N.params)
+      if (!is.null(self$N_params)){
+        self$control$mass_matrix = rep(1,self$N_params)
       }
       self$control$x = log(epsilon0)
       self$control$mu = log(10*epsilon0)
@@ -287,7 +287,7 @@ HMC_samplerF = R6Class("F_hypers",
                        ),
                        active = list(
                          p = function() {
-                           as.integer(self$N.params - 4)/2 # Change this to n-4 after
+                           as.integer(self$N_params - 4)/2 # Change this to n-4 after
                          },
                          tau = function() {
                            Dt = private$.eigKt()$values
@@ -394,7 +394,7 @@ HMC_samplerZ = R6Class("Z_hypers",
                        ),
                        active = list(
                          n = function(){
-                           self$N.params - 1
+                           self$N_params - 1
                          },
                          log_phi_tilde = function(){
                            self$samples[,1:self$n]
@@ -501,7 +501,7 @@ HMC_samplerSKIM = R6Class("F_hypers",
                           ),
                           active = list(
                             p = function() {
-                              as.integer(self$N.params - 5)/2 # Change this to n-4 after
+                              as.integer(self$N_params - 5)/2 # Change this to n-4 after
                             },
                             v = function(){ # And comment out this
                               v = exp(log(self$data$slab_scale) + 0.5*self$samples[,2*self$p+5])
@@ -522,9 +522,9 @@ KroneckerMatheronSamplerF = R6Class("F_sampler",
                                     # Samples from the posterior of a GP with Kronecker-structured covariance
                                     # using Matheron's rule.
                                     public = list(
-                                      N.iter = NULL,
+                                      N_iter = NULL,
                                       thinning = NULL,
-                                      N.params = NULL,
+                                      N_params = NULL,
                                       # samples = NULL,
                                       unthinned_samples = NULL,
                                       iteration = 1,
@@ -539,12 +539,12 @@ KroneckerMatheronSamplerF = R6Class("F_sampler",
                                         window_counter = 0, # counting windows
                                         reject_counter = 0 # count rejections
                                       ),
-                                      initialize = function(N.iter = 2000, N.params = NULL,
+                                      initialize = function(N_iter = 2000, N_params = NULL,
                                                             data = NULL, thinning = 10,
                                                             init = NULL, h5file = NULL){
-                                        self$N.iter = N.iter
-                                        self$N.params = N.params
-                                        self$unthinned_samples = array(NA,dim=c(N.iter*thinning,N.params))
+                                        self$N_iter = N_iter
+                                        self$N_params = N_params
+                                        self$unthinned_samples = array(NA,dim=c(N_iter*thinning,N_params))
                                         self$data = data
                                         self$thinning = thinning
                                         self$unthinned_samples[1,,] = init
@@ -553,17 +553,17 @@ KroneckerMatheronSamplerF = R6Class("F_sampler",
                                         if (!is.null(h5file)){
                                           self$h5file = h5file
                                           self$h5file = self$h5file$create_group("F_sampler")
-                                          self$h5Qx = self$h5file$create_dataset(name="Qx",dims=c(N.iter,self$N.params[1],self$N.params[1]),
-                                                                                       chunk_dims = c(1,self$N.params[1],self$N.params[1]),
+                                          self$h5Qx = self$h5file$create_dataset(name="Qx",dims=c(N_iter,self$N_params[1],self$N_params[1]),
+                                                                                       chunk_dims = c(1,self$N_params[1],self$N_params[1]),
                                                                                        dtype = h5types$double)
-                                          self$h5Dx = self$h5file$create_dataset(name="Dx",dims=c(N.iter,self$N.params[1]),
-                                                                                       chunk_dims = c(1,self$N.params[1]),
+                                          self$h5Dx = self$h5file$create_dataset(name="Dx",dims=c(N_iter,self$N_params[1]),
+                                                                                       chunk_dims = c(1,self$N_params[1]),
                                                                                        dtype = h5types$double)
-                                          self$h5Qt = self$h5file$create_dataset(name="Qt",dims=c(N.iter,self$N.params[2],self$N.params[2]),
-                                                                                       chunk_dims = c(1,self$N.params[2],self$N.params[2]),
+                                          self$h5Qt = self$h5file$create_dataset(name="Qt",dims=c(N_iter,self$N_params[2],self$N_params[2]),
+                                                                                       chunk_dims = c(1,self$N_params[2],self$N_params[2]),
                                                                                        dtype = h5types$double)
-                                          self$h5Dt = self$h5file$create_dataset(name="Dt",dims=c(N.iter,self$N.params[2]),
-                                                                                       chunk_dims = c(1,self$N.params[2]),
+                                          self$h5Dt = self$h5file$create_dataset(name="Dt",dims=c(N_iter,self$N_params[2]),
+                                                                                       chunk_dims = c(1,self$N_params[2]),
                                                                                        dtype = h5types$double)
                                         }
                                       },
@@ -746,9 +746,9 @@ KroneckerMatheronSamplerZ = R6Class("Z_sampler",
                                     # Samples from the posterior of a GP with Kronecker-structured covariance
                                     # using Matheron's rule.
                                     public = list(
-                                      N.iter = NULL,
+                                      N_iter = NULL,
                                       thinning = NULL,
-                                      N.params = NULL,
+                                      N_params = NULL,
                                       # samples = NULL,
                                       unthinned_samples = NULL,
                                       iteration = 1,
@@ -757,12 +757,12 @@ KroneckerMatheronSamplerZ = R6Class("Z_sampler",
                                         window_counter = 0, # counting windows
                                         reject_counter = 0 # count rejections
                                       ),
-                                      initialize = function(N.iter = 1000, N.params = NULL,
+                                      initialize = function(N_iter = 1000, N_params = NULL,
                                                             data = NULL, thinning = 10,
                                                             init = NULL){
-                                        self$N.iter = N.iter
-                                        self$N.params = N.params
-                                        self$unthinned_samples = array(NA,dim=c(N.iter*thinning,N.params))
+                                        self$N_iter = N_iter
+                                        self$N_params = N_params
+                                        self$unthinned_samples = array(NA,dim=c(N_iter*thinning,N_params))
                                         self$data = data
                                         self$thinning = thinning
                                         self$unthinned_samples[1,,] = init
@@ -1295,7 +1295,7 @@ HMC_sampler_thetaT = R6Class("theta_t_sampler",
                              ),
                              active = list(
                                n = function(){
-                                 self$N.params - 1
+                                 self$N_params - 1
                                },
                                log_ell = function(){
                                  self$samples[,1]
@@ -1396,7 +1396,7 @@ HMC_samplerZ_noise = R6Class("Z_hypers",
                              ),
                              active = list(
                                n = function(){
-                                 self$N.params - 2
+                                 self$N_params - 2
                                },
                                log_phi_tilde = function(){
                                  self$samples[,1:self$n]

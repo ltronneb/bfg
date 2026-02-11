@@ -12,7 +12,7 @@ bfg(
   data_generated = NULL,
   interactions = F,
   thinning = 1,
-  N.iter = 2000,
+  N_iter = 2000,
   plotting = F,
   compute_betas = F,
   verbose = F
@@ -31,7 +31,7 @@ bfg(
 
 \item{thinning}{: int, how many Gibbs samples of F and Z per HMC draw of hypers (default 1)}
 
-\item{N.iter}{: number of MCMC iterations (default 2000)}
+\item{N_iter}{: number of MCMC iterations (default 2000)}
 
 \item{plotting}{: bool, plot fitted curves and variable selection on the fly?}
 
