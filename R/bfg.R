@@ -128,7 +128,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                                   temperature = temp,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
-                                                                  beta_gamma_a = 1, beta_gamma_b =  2000, dir_a = 1),
+                                                                  beta_gamma_a = 1, beta_gamma_b =  20, dir_a = 1),
                                     N_iter = N_iter,verbose=verbose)
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
