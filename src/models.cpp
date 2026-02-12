@@ -605,7 +605,7 @@ stan::math::var gp_1dloglik_analyticgrad_SKIM(const Eigen::MatrixXd& X,
     Eigen::VectorXd xj_sq = X.col(j).array().square();
     Eigen::MatrixXd xj_outer = 2 * lambda(j) * (xj * xj.transpose());
     Eigen::MatrixXd xj_sq_outer = 2 * lambda(j) * (xj_sq * xj_sq.transpose());
-    Eigen::MatrixXd dkdtheta = (tau2 * tau2)*(1.0 + xlxt.array()).matrix() * xj_outer - (0.5 * tau2 * tau2)*xj_sq_outer + (tau1 * tau1 - tau2 * tau2) * xj_outer;
+    Eigen::MatrixXd dkdtheta = (tau2 * tau2)*((1.0 + xlxt.array()) * xj_outer.array()).matrix() - (0.5 * tau2 * tau2)*xj_sq_outer + (tau1 * tau1 - tau2 * tau2) * xj_outer;
     quad_solve_grad(2+j) = -((KFU.transpose() * dkdtheta * KFU).diagonal().array() / Dt.array()).sum();
     Eigen::MatrixXd xj_solve_mat = llt->solve(xj);
     Eigen::VectorXd xj_solve = xj_solve_mat.col(0);
@@ -773,7 +773,7 @@ T gp_kron_logpost_1d_horseshoe(// Data
   auto tau = exp(log_tau);
   
   // Stack all my parameters I care about into a vector
-  Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> theta(p + 2);
+  Eigen::Matrix<T, Eigen::Dynamic, 1> theta(p + 2);
   theta(0) = tau;
   for (int j = 0; j < p; ++j)
     theta(j + 1) = lambda(j);
@@ -883,7 +883,8 @@ T gp_kron_logpost_1d_SKIM(// Data
   // Construct higher-order parameters
   T log_tau0 = log(tau0_prime) - log_sum_exp(0.5 * Dt.array().log());
   auto log_u = log(slab_scale) + 0.5*log_u_aux;
-  auto log_v = log(slab_scale) + 0.5*log_v_aux;
+  // auto log_v = 0.5*log_v_aux;
+  auto log_v = log_v_aux;
   
   auto log_tau1 = log_tau_aux_1 + 0.5*log_tau_aux_2 + log_tau0;
   auto log_lambda_tilde = add(log_lambda_tilde_aux_1, 0.5*log_lambda_tilde_aux_2);
@@ -896,7 +897,7 @@ T gp_kron_logpost_1d_SKIM(// Data
   auto tau2 = exp(2.0 * (log_tau1 - log_u) + log_v);
   
   // Combine parameters into vector
-  Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1> theta(p + 3);
+  Eigen::Matrix<T, Eigen::Dynamic, 1> theta(p + 3);
   theta(0) = tau1;
   theta(1) = tau2;
   for (int j = 0; j < p; ++j)

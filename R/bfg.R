@@ -83,7 +83,8 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                               tau0_prime = tau0_prime,
                                                               nugget = 1e-6, ell = ell0),
                                    N_iter = N_iter,verbose=verbose)
-
+    F_hypers$control$max_L = 2^10
+    F_hypers$control$delta = 0.95
     F_sampler = KroneckerMatheronSamplerSKIM$new(data = list(X=X,
                                                              t=t,
                                                              Y=working_Y,
@@ -106,12 +107,15 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   F_hypers$samples[1,] = 2
   if (interactions){
     # but also for the interactions init with no interactions active
-    F_hypers$samples[1,2*p+5] = 0
+    # F_hypers$samples[1,2*p+5] = -2
   }
   
   # Set up eta parameter for r2d2 prior
   eta0 = rep(NA,N_iter)
   eta0[1] = n*(F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + sigma0^2)
+  if (interactions){
+    eta0[1] = sum(diag(F_sampler$Kx))+n*sigma0^2
+  }
   
   # Set up samplers for Z
   # Temperature scheduler
@@ -124,7 +128,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                                   temperature = temp,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
-                                                                  beta_gamma_a = 1, beta_gamma_b =  20, dir_a = 1),
+                                                                  beta_gamma_a = 1, beta_gamma_b =  2000, dir_a = 1),
                                     N_iter = N_iter,verbose=verbose)
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
@@ -152,8 +156,6 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   L = list(samplers = list(F_sampler=F_sampler, F_hypers=F_hypers,
                            Z_sampler=Z_sampler, Z_hypers=Z_hypers,
                            ell_sampler=ell_sampler),
-                           # s2_sampler=s2_sampler),
-                           # sigma_ell_sampler = sigma_ell_sampler),
            data = list(Y=Y,X=X,t=t,tau0_prime=tau0_prime,
                        data_generated=data_generated,
                        interactions=interactions,thinning=thinning,
@@ -174,8 +176,6 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
     imp_Y = matrix(rnorm(n*m,
                          F_sampler$samples[i-1,,]+Z_sampler$samples[i-1,,],
                          Z_hypers$sigma[i-1]),
-                         # s2_sampler$sigma[i-1]),
-                         # sigma_ell_sampler$sigma[i-1]),
                    ncol=m,nrow=n)
     working_Y[missing] = imp_Y[missing]
     
@@ -188,11 +188,27 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
     F_hypers$data$Y = F_sampler$samples[i-1,,]
     F_hypers$data$tau0_prime[i] = tau0_prime0*Z_hypers$sigma[i-1]
     F_hypers$sample()
+    # Set up hypers for F
+    F_sampler$data$c = F_hypers$c[i]
+    if (!interactions){
+      F_sampler$data$tau = F_hypers$tau[i]
+    } else{
+      F_sampler$data$tau1 = F_hypers$tau[i]
+      F_sampler$data$tau2 = F_hypers$tau2[i]
+    }
+    F_sampler$data$lambda = F_hypers$lambda[i,]
+    F_sampler$data$Y = working_Y
+    
+    
+    
+    
     # Sample Z_hypers
     eta = n*(F_hypers$c[i]^2 + sum((F_hypers$tau[i]*F_hypers$lambda[i,])^2) + Z_hypers$sigma[i-1]^2)
-    # eta = n*(s2_sampler$sigma[i-1]^2)
+    # TODO change this for interactions!
+    if (interactions){
+      eta = sum(diag(F_sampler$Kx))+n*Z_hypers$sigma[i-1]^2
+    }
     Z_hypers$data$eta[i] = eta
-    # Z_hypers$data$Y = Z_sampler$samples[i-1,,]
     Z_hypers$data$Y = working_Y - F_sampler$samples[i-1,,]
     Z_hypers$sample()
     
@@ -204,16 +220,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
     }
     
     # Set up hypers for F and Z
-    F_sampler$data$c = F_hypers$c[i]
-    if (!interactions){
-      F_sampler$data$tau = F_hypers$tau[i]
-    } else{
-      F_sampler$data$tau1 = F_hypers$tau[i]
-      F_sampler$data$tau2 = F_hypers$tau2[i]
-    }
-    F_sampler$data$lambda = F_hypers$lambda[i,]
     F_sampler$data$gamma = Z_hypers$gamma[i,]
-    F_sampler$data$Y = working_Y
     Z_sampler$data$gamma = Z_hypers$gamma[i,]
     
     ############################################################################

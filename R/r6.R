@@ -225,7 +225,7 @@ HMC_samplerF = R6Class("F_hypers",
                        inherit = HMC,
                        public = list(
                          initialize = function(slab_scale = 4, slab_df = 4.0, 
-                                               nu_local = 1, nu_global = 3,...){
+                                               nu_local = 1, nu_global = 1,...){
                            super$initialize(...)
                            self$data$slab_scale = slab_scale
                            self$data$slab_df = slab_df
@@ -504,7 +504,8 @@ HMC_samplerSKIM = R6Class("F_hypers",
                               as.integer(self$N_params - 5)/2 # Change this to n-4 after
                             },
                             v = function(){ # And comment out this
-                              v = exp(log(self$data$slab_scale) + 0.5*self$samples[,2*self$p+5])
+                              # v = exp(0.5*self$samples[,2*self$p+5])
+                              v = exp(self$samples[,2*self$p+5])
                               return(v)
                             },
                             tau2 = function(){
