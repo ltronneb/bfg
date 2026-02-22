@@ -183,6 +183,11 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   print(paste0("DSS selected ", n_selected, " variables (excluding intercept)"))
   print("Selected coefficients:")
   print(selected)
-  return(list(selected = selected))
+  # I'll also return the full solution path for ROC curves
+  models = list()
+  for (kk in 1:length(model_size)){
+    models[[kk]] = sort(id_j[which(rowSums(beta_lam[kk,-1,])!=0)])
+  }
+  return(list(selected = selected,glmnet_fit = glmnet_fit, models=unique(models)))
 }
 
