@@ -47,7 +47,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   prepare_cache(X)
   # Set up hdf5r the samplers can use to write to file
   bfg_file = tempfile(fileext = ".h5")
-  bfg_h5 = H5File$new(bfg_file,mode="w")
+  bfg_h5 = hdf5r::H5File$new(bfg_file,mode="w")
   print("Temporary file set up:")
   print(bfg_h5)
   

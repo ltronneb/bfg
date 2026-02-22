@@ -556,16 +556,16 @@ KroneckerMatheronSamplerF = R6Class("F_sampler",
                                           self$h5file = self$h5file$create_group("F_sampler")
                                           self$h5Qx = self$h5file$create_dataset(name="Qx",dims=c(N_iter,self$N_params[1],self$N_params[1]),
                                                                                        chunk_dims = c(1,self$N_params[1],self$N_params[1]),
-                                                                                       dtype = h5types$double)
+                                                                                       dtype =  hdf5r::h5types$double)
                                           self$h5Dx = self$h5file$create_dataset(name="Dx",dims=c(N_iter,self$N_params[1]),
                                                                                        chunk_dims = c(1,self$N_params[1]),
-                                                                                       dtype = h5types$double)
+                                                                                       dtype = hdf5r::h5types$double)
                                           self$h5Qt = self$h5file$create_dataset(name="Qt",dims=c(N_iter,self$N_params[2],self$N_params[2]),
                                                                                        chunk_dims = c(1,self$N_params[2],self$N_params[2]),
-                                                                                       dtype = h5types$double)
+                                                                                       dtype = hdf5r::h5types$double)
                                           self$h5Dt = self$h5file$create_dataset(name="Dt",dims=c(N_iter,self$N_params[2]),
                                                                                        chunk_dims = c(1,self$N_params[2]),
-                                                                                       dtype = h5types$double)
+                                                                                       dtype = hdf5r::h5types$double)
                                         }
                                       },
                                       sample = function(){

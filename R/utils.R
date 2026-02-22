@@ -40,7 +40,7 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
     E[kk,id[kk]] = 1
   }
   # Set up cached eigen decomps
-  bfg_h5 = H5File$new(fit$h5file, mode="r")
+  bfg_h5 = hdf5r::H5File$new(fit$h5file, mode="r")
   F.grp = bfg_h5$open(("F_sampler"))
   Qx = F.grp[["Qx"]]
   Qt = F.grp[["Qt"]]

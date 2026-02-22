@@ -2,7 +2,7 @@
 library(fosr)
 library(bfg)
 # Set number of threads to be friendly
-RcppParallel::setThreadOptions(numThreads = 8)
+RcppParallel::setThreadOptions(numThreads = 4)
 # Set up some parameters shared for all settings
 N.simulations = 100
 n = 100
