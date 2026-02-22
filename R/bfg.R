@@ -147,7 +147,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                  prop_sigma = 0.005)
   # Container for betas
   if (compute_betas){
-    beta.hat = array(0.0,dim=c(p,m,N_iter))
+    beta.hat = array(0.0,dim=c(N_iter,p,m))
   } else{
     beta.hat = NULL
   }
@@ -278,7 +278,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
         Kx_star = (t(X)*(tau*lambda)^2) # TODO: This needs to look a bit different with interactions
         error = fi - f 
         correction = Kx_star%*%solve(Kx+1e-6*diag(nrow(Kx)),error)
-        L$beta.hat[,,i] = B + correction
+        L$beta.hat[i,,] = B + correction
       }
     } else{
       print("Computing coefficients not enabled for interaction models")
