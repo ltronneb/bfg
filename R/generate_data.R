@@ -11,9 +11,10 @@
 #'@param ell : length-scale controlling smoothness in time
 #'@param rho : correlation between covariates x_i, x_j
 #'@param re : bool (simulate with random effects, default=T)
+#'@param re_prop : proportion of variance alloted to random effects
 #'
 #'@export
-gen_data = function(n,m,p,p0,RSNR,ell,rho,re=T){
+gen_data = function(n,m,p,p0,RSNR,ell,rho,re=T,re_prop = 0.1){
   # Function to generate a sample dataset for simulation study
   # n: number of parameters
   # m: number of unique input locations (say time)
@@ -38,10 +39,17 @@ gen_data = function(n,m,p,p0,RSNR,ell,rho,re=T){
   }
   
   # Generate random effects
+  # First get eta
+  eta = n*(1+p0)
+  w = eta * (re_prop/(1-re_prop))
+  xi_aux = rgamma(n,1,1)
+  xi = xi_aux/sum(xi_aux)
+  gamma = sqrt(w*xi)
+  
   Z = matrix(0,ncol=m,nrow=n)
   if (re){ # Generate random effects
     for (i in 1:n){
-      Z[i,] = Lt%*%rnorm(m) 
+      Z[i,] = (gamma[i]*Lt)%*%rnorm(m) 
     }
   }
   

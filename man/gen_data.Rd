@@ -4,7 +4,7 @@
 \alias{gen_data}
 \title{Generate simulated data}
 \usage{
-gen_data(n, m, p, p0, RSNR, ell, rho, re = T)
+gen_data(n, m, p, p0, RSNR, ell, rho, re = T, re_prop = 0.1)
 }
 \arguments{
 \item{n}{: number of observations}

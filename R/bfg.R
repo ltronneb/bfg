@@ -261,24 +261,29 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
     ############################################################################
     ###############   COMPUTING BETA   #########################################
     ############################################################################
-    if (compute_betas){
-      eigKt = F_sampler$eigKt
-      fi = F_sampler$samples[i,,]
-      lambda = F_hypers$lambda[i,]
-      tau = F_hypers$tau[i]
-      Lt = t(t(eigKt$vectors)*sqrt(eigKt$values))
-      # Sample from prior
-      Z = matrix(rnorm(p*m),ncol=m,nrow=p)
-      B = (Z*(tau*lambda))%*%t(Lt)
-      # Prior sample from f | B is deterministic
-      f = X%*%B
-      # Now I have a joint sample from \pi(B,f), apply Matheron
-      Kx = F_sampler$Kx
-      Kx_star = (t(X)*(tau*lambda)^2) # TODO: This needs to look a bit different with interactions
-      error = fi - f 
-      correction = Kx_star%*%solve(Kx+1e-6*diag(nrow(Kx)),error)
-      L$beta.hat[,,i] = B + correction
+    if (!interactions){
+      if (compute_betas){
+        eigKt = F_sampler$eigKt
+        fi = F_sampler$samples[i,,]
+        lambda = F_hypers$lambda[i,]
+        tau = F_hypers$tau[i]
+        Lt = t(t(eigKt$vectors)*sqrt(eigKt$values))
+        # Sample from prior
+        Z = matrix(rnorm(p*m),ncol=m,nrow=p)
+        B = (Z*(tau*lambda))%*%t(Lt)
+        # Prior sample from f | B is deterministic
+        f = X%*%B
+        # Now I have a joint sample from \pi(B,f), apply Matheron
+        Kx = F_sampler$Kx
+        Kx_star = (t(X)*(tau*lambda)^2) # TODO: This needs to look a bit different with interactions
+        error = fi - f 
+        correction = Kx_star%*%solve(Kx+1e-6*diag(nrow(Kx)),error)
+        L$beta.hat[,,i] = B + correction
+      }
+    } else{
+      print("Computing coefficients not enabled for interaction models")
     }
+    
     
     
     
