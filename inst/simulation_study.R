@@ -1,6 +1,8 @@
 ##### Simulation study for the BFG paper
 library(fosr)
 library(bfg)
+# Set number of threads to be friendly
+RcppParallel::setThreadOptions(numThreads = 8)
 # Set up some parameters shared for all settings
 N.simulations = 100
 n = 100
