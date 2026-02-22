@@ -10,6 +10,8 @@
 #' 
 #' @return beta.hat : array of beta coefficients
 #' 
+#' 
+#' 
 #' @export
 get_beta = function(fit, k = NULL, N_samples = NULL){
   # Pull out some stuff

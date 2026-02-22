@@ -25,6 +25,8 @@ bfg(
 
 \item{t}{: m vector of inputs}
 
+\item{p0}{: expected number of non-zero coefficients}
+
 \item{data_generated}{: list returned by gen_data, for plotting simulations}
 
 \item{interactions}{: bool, estimate model with interactions? (default F)}
@@ -38,8 +40,6 @@ bfg(
 \item{compute_betas}{: bool, compute posterior samples of beta on the fly (not reccomended for large p)}
 
 \item{verbose}{: bool, print messages from samplers?}
-
-\item{tau0_prime0}{: scaling factor for the global horseshoe parameter}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model

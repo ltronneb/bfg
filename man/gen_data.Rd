@@ -22,6 +22,8 @@ gen_data(n, m, p, p0, RSNR, ell, rho, re = T, re_prop = 0.1)
 \item{rho}{: correlation between covariates x_i, x_j}
 
 \item{re}{: bool (simulate with random effects, default=T)}
+
+\item{re_prop}{: proportion of variance alloted to random effects}
 }
 \description{
 This function generates simulated data for function-on-scalar regression

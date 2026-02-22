@@ -1,6 +1,7 @@
 useDynLib(bfg, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
 importFrom(RcppParallel, RcppParallelLibs)
+importFrom(glmnet,glmnet)
 export(bfg)
 export(gen_data)
 export(get_beta)

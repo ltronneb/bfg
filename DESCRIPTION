@@ -7,7 +7,7 @@ Authors@R: person("Leiv", "Rønneberg", role = c("aut", "cre"), email = "ltronne
 Description: More about what it does (maybe more than one line).
 License: GPL (>= 3)
 Encoding: UTF-8
-Imports: Rcpp, RcppParallel, MASS, R6
+Imports: Rcpp, RcppParallel, MASS, R6, glmnet, hdf5r
 LinkingTo: Rcpp, RcppEigen, RcppParallel, StanHeaders, BH 
 SystemRequirements: GNU make
 RoxygenNote: 7.3.2
