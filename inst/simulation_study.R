@@ -1,8 +1,14 @@
 ##### Simulation study for the BFG paper
 library(fosr)
 library(bfg)
+library(foreach)
+library(doParallel)
+library(doSNOW)
 # Set number of threads to be friendly
-RcppParallel::setThreadOptions(numThreads = 4)
+#RcppParallel::setThreadOptions(numThreads = 4)
+cores <- 4
+cl <- makeCluster(cores,outfile="out.txt") # Create a cluster object, using one less than total cores
+registerDoParallel(cl) # Register the parallel backend
 # Set up some parameters shared for all settings
 N.simulations = 100
 n = 100
@@ -16,7 +22,8 @@ rho = 0.75
 p_list = list(200,500,1000)
 
 for (p in p_list){
-  for (sim in 1:N.simulations){
+  #for (sim in 1:N.simulations){
+  foreach(sim = 1:N.simulations, .packages = c('bfg','fosr','glmnet','hdf5r')) %dopar% {
     # Set seed here based on current settings
     set.seed(as.numeric(gsub("[.]","",paste0(n,m,ell0,p0,RSNR,RZ2,rho,p,sim)))/1e18)
     file_name_settings = paste0("n=",n,",m=",m,",ell0=",ell0,",p0=",p0,
@@ -50,7 +57,7 @@ for (p in p_list){
         FPR_TPR[1,model_size] = length(intersect(true,indices)) / length(true)
         FPR_TPR[2,model_size] = length(setdiff(indices,true)) / (p-length(true))
       }
-      plot(FPR_TPR[2,],FPR_TPR[1,],type="l",ylim=c(0,1),xlim=c(0,1))
+      #plot(FPR_TPR[2,],FPR_TPR[1,],type="l",ylim=c(0,1),xlim=c(0,1))
       
       # Compute 
       # Store results
@@ -63,7 +70,7 @@ for (p in p_list){
       # And I'll also store this file
       save(fit, file = paste0("bfg_",file_name_settings))
     },error = function(msg){
-      return(NA)
+      print(msg)
     })
     
     
@@ -103,7 +110,7 @@ for (p in p_list){
         FPR_TPR[1,model_size] = length(intersect(true,indices)) / length(true)
         FPR_TPR[2,model_size] = length(setdiff(indices,true)) / (p-length(true))
       }
-      lines(FPR_TPR[2,],FPR_TPR[1,],col="red")
+      #lines(FPR_TPR[2,],FPR_TPR[1,],col="red")
       # Store results
       out$rmse = rmse
       out$mciw = mciw
@@ -114,9 +121,9 @@ for (p in p_list){
       # And I'll also store this file
       save(out, file = paste0("fosr_",file_name_settings))
     }, error = function(msg){
-      return(NA)
+      print(msg)
     })
   }
 }
-
+stopCluster(cl)
 
