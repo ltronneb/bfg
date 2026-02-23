@@ -95,6 +95,9 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   # Do some initial setup
   X = fit$data$X
   p = ncol(X)
+  if (max_model_size > p){
+    max_model_size = p
+  }
   m = nrow(fit$data$t)
   N_iter = fit$data$N_iter
   warmup = fit$data$warmup
