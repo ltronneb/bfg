@@ -21,6 +21,10 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   X = as.matrix(X)
   Y = as.matrix(Y)
   
+  if (!is.null(data_generated)){
+    true = which(rowSums(data_generated$B) != 0)
+  }
+  
   # Handle missing values in y
   missing = which(is.na(Y),arr.ind=T)
   # print(nrow(missing))
@@ -128,7 +132,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                                   temperature = temp,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
-                                                                  beta_gamma_a = 1, beta_gamma_b =  20, dir_a = 1),
+                                                                  beta_gamma_a = 1.695, beta_gamma_b =  8.423, dir_a = 1),
                                     N_iter = N_iter,verbose=verbose)
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
@@ -318,6 +322,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
         lines(apply(Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
       }
       plot(F_hypers$lambda[i,])
+      abline(v=true)
       Sys.sleep(0.1)
       par(mfrow=c(1,1))
     }
