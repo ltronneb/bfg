@@ -11,12 +11,15 @@
 #'@param plotting : bool, plot fitted curves and variable selection on the fly?
 #'@param compute_betas : bool, compute posterior samples of beta on the fly (not reccomended for large p)
 #'@param verbose : bool, print messages from samplers?
+#'@param beta_gamma_a : hyperparameter for the beta prior on variance explained by random effects
+#'@param beta_gamma_b : hyperparameter for the beta prior on variance explained by random effects
 #'
 #'@export
 bfg = function(Y,X,t,p0,data_generated=NULL,
                interactions=F,thinning=1,N_iter=2000, 
                plotting=F, compute_betas = F,
-               verbose = F){
+               verbose = F, 
+               beta_gamma_a = 1, beta_gamma_b = 40){
   # TODO check inputs are correctly formatted and dimensioned
   X = as.matrix(X)
   Y = as.matrix(Y)
@@ -108,7 +111,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   
   # Found that it is generally good to init these samplers at large values,
   # such that all parameters are 'active' in the start
-  F_hypers$samples[1,] = 2
+  F_hypers$samples[1,] = runif(2*p+4,min=1,max=2)
   if (interactions){
     # but also for the interactions init with no interactions active
     # F_hypers$samples[1,2*p+5] = -2
@@ -123,8 +126,8 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   
   # Set up samplers for Z
   # Temperature scheduler
-  temp = rep(1,N_iter) # turn this off for now -- constant temperature
-  # temp = c(seq(0,1,length.out=1000)^4,rep(1,N_iter-1000))
+  # temp = rep(1,N_iter) # turn this off for now -- constant temperature
+  temp = c(seq(0,1,length.out=1000)^2,rep(1,N_iter-1000))
   # temp = c(rep(0,100),rep(1,N.iter-100))
   Z_hypers = HMC_samplerZ_noise$new(N_params = (n+2), data = list(X = diag(n),
                                                                   t = t,
@@ -132,8 +135,10 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                                   temperature = temp,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
-                                                                  beta_gamma_a = 1.695, beta_gamma_b =  8.423, dir_a = 1),
+                                                                  beta_gamma_a = beta_gamma_a, beta_gamma_b =  beta_gamma_b, dir_a = 1),
+                                                                  # beta_gamma_a = 2.887, beta_gamma_b =  38.623, dir_a = 1),
                                     N_iter = N_iter,verbose=verbose)
+  Z_hypers$samples[1,] = -2
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
                                                         Y=working_Y-F_sampler$samples[1,,],
@@ -259,7 +264,11 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
       B = diag(n) - 1/n*rep(1,n)%*%t(rep(1,n))
       tmp = Z_sampler$unthinned_samples[Z_sampler$iteration-1,,]
       tmp = B%*%tmp
+      # if (i < 200){
+      # Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = 0*tmp
+      # } else{
       Z_sampler$unthinned_samples[Z_sampler$iteration-1,,] = tmp
+      # }
     }
     
     ############################################################################
@@ -338,8 +347,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   t2 = Sys.time()
   L$time_elapsed = t2 - t1
 }
-  
-  
-  
-  
-  
+
+
+
+

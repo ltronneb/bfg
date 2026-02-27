@@ -224,7 +224,7 @@ HMC = R6Class(
 HMC_samplerF = R6Class("F_hypers",
                        inherit = HMC,
                        public = list(
-                         initialize = function(slab_scale = 4, slab_df = 4.0, 
+                         initialize = function(slab_scale = 1, slab_df = 4.0, 
                                                nu_local = 1, nu_global = 1,...){
                            super$initialize(...)
                            self$data$slab_scale = slab_scale

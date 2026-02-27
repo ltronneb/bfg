@@ -32,7 +32,9 @@ gen_data = function(n,m,p,p0,RSNR,ell,rho,re=T,re_prop = 0.1){
   B = matrix(0,ncol=m,nrow=p)
   idx_b = floor(seq(1,p,length.out=p0)) # evenly spaced
   Kt = kern_t(t.seq,t.seq,ell)
+  Kt_re = kern_t(t.seq,t.seq,0.5*ell)
   Lt = t(chol(Kt+1e-9*diag(m)))
+  Lt_re = t(chol(Kt_re+1e-9*diag(m)))
   B0 = Lt%*%rnorm(m)
   for (k in idx_b){
     B[k,] = Lt%*%rnorm(m)

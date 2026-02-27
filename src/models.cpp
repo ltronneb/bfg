@@ -1015,7 +1015,8 @@ T gp_kron_logpost_1d_re_noise(const Eigen::MatrixXd& Qt,
   // Tack on priors
   auto log_prior_log_phi_tilde = stan::math::gamma_lpdf(phi_tilde,dir_a,1) + sum(log_phi_tilde);
   auto log_prior_logit_u = stan::math::beta_lpdf(u, beta_gamma_a, beta_gamma_b) + log(u) + log1m(u);
-  auto log_prior_log_sigma = 0.0; // Flat prior in log-space
+  // auto log_prior_log_sigma = 0.0; // Flat prior in log-space
+  auto log_prior_log_sigma = stan::math::normal_lpdf(sigma, 0, 1);
 
   // Log posterior returned
   auto logpost = temperature * loglik +
