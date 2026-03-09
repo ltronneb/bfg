@@ -15,7 +15,9 @@ bfg(
   N_iter = 2000,
   plotting = F,
   compute_betas = F,
-  verbose = F
+  verbose = F,
+  beta_gamma_a = 1,
+  beta_gamma_b = 40
 )
 }
 \arguments{
@@ -40,6 +42,10 @@ bfg(
 \item{compute_betas}{: bool, compute posterior samples of beta on the fly (not reccomended for large p)}
 
 \item{verbose}{: bool, print messages from samplers?}
+
+\item{beta_gamma_a}{: hyperparameter for the beta prior on variance explained by random effects}
+
+\item{beta_gamma_b}{: hyperparameter for the beta prior on variance explained by random effects}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model
