@@ -13,13 +13,18 @@
 #'@param verbose : bool, print messages from samplers?
 #'@param beta_gamma_a : hyperparameter for the beta prior on variance explained by random effects
 #'@param beta_gamma_b : hyperparameter for the beta prior on variance explained by random effects
+#'@param slab_scale : a priori guess of scale for surviving coefficient functions
+#'@param slab_df : degrees of freedom for t-distributed surviving coefficient functions
+#'@param temp_schedule : vector of length N_iter defining a temperature schedule. Defaults to NULL
 #'
 #'@export
 bfg = function(Y,X,t,p0,data_generated=NULL,
                interactions=F,thinning=1,N_iter=2000, 
                plotting=F, compute_betas = F,
                verbose = F, 
-               beta_gamma_a = 1, beta_gamma_b = 40){
+               beta_gamma_a = 1, beta_gamma_b = 40,
+               slab_scale = 1.0, slab_df = 4.0,
+               temp_schedule = NULL){
   # TODO check inputs are correctly formatted and dimensioned
   X = as.matrix(X)
   Y = as.matrix(Y)
@@ -42,7 +47,8 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   
   # Inits
   ell0 = median(abs(outer(t,t,FUN="-")))/2
-  sigma0 = sqrt(mean(apply(Y,1,var))/4)
+  # ell0 = 1
+  sigma0 = sqrt(mean(apply(working_Y,1,var))/4)
   Z0 = matrix(0,ncol=m,nrow=n)
   F0 = Z0
   
@@ -68,7 +74,8 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                            Y = F0,
                                                            tau0_prime = tau0_prime,
                                                            nugget = 1e-6, ell = ell0),
-                                N_iter = N_iter,verbose=verbose)
+                                N_iter = N_iter,verbose=verbose,
+                                slab_scale = slab_scale, slab_df = slab_df)
     F_sampler = KroneckerMatheronSamplerF$new(data = list(X=X,
                                                           t=t,
                                                           Y=working_Y,
@@ -109,14 +116,6 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                  h5file = bfg_h5)
   }
   
-  # Found that it is generally good to init these samplers at large values,
-  # such that all parameters are 'active' in the start
-  F_hypers$samples[1,] = runif(2*p+4,min=1,max=2)
-  if (interactions){
-    # but also for the interactions init with no interactions active
-    # F_hypers$samples[1,2*p+5] = -2
-  }
-  
   # Set up eta parameter for r2d2 prior
   eta0 = rep(NA,N_iter)
   eta0[1] = n*(F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + sigma0^2)
@@ -126,9 +125,11 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   
   # Set up samplers for Z
   # Temperature scheduler
-  # temp = rep(1,N_iter) # turn this off for now -- constant temperature
-  temp = c(seq(0,1,length.out=1000)^2,rep(1,N_iter-1000))
-  # temp = c(rep(0,100),rep(1,N.iter-100))
+  if (is.null(temp_schedule)){
+    temp = rep(1,N_iter)
+  } else{
+    temp = temp_schedule
+  }
   Z_hypers = HMC_samplerZ_noise$new(N_params = (n+2), data = list(X = diag(n),
                                                                   t = t,
                                                                   Y = working_Y-F_sampler$samples[1,,],
@@ -136,9 +137,8 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
                                                                   beta_gamma_a = beta_gamma_a, beta_gamma_b =  beta_gamma_b, dir_a = 1),
-                                                                  # beta_gamma_a = 2.887, beta_gamma_b =  38.623, dir_a = 1),
                                     N_iter = N_iter,verbose=verbose)
-  Z_hypers$samples[1,] = -2
+  Z_hypers$samples[1,] = runif(n+2,min=-2,max=2) # Init these
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
                                                         Y=working_Y-F_sampler$samples[1,,],
@@ -305,6 +305,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
       idx = 11
       lag = 100
       par(mfrow=c(2,2))
+      # Fig 1: Data fit
       plot(data_generated$F.true[idx,],col="blue",lty=2,type="l",main=paste0("F + Z"," iter=",i))
       points(data_generated$Y[idx,])
       lines(F_sampler$samples[i,idx,]+Z_sampler$samples[i,idx,],col="red")
@@ -312,6 +313,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
         lines(apply(F_sampler$samples[(i-lag):i,idx,] + Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
       }
       # lines(F_sampler$samples[i,idx,],col="red")
+      # Fig 2: Fixed effects
       plot((data_generated$F.true - data_generated$Z)[idx,],type="l",col="blue",lty=2, main=paste0("F"," iter=",i))
       points((data_generated$Y - data_generated$Z)[idx,])
       points((data_generated$Y - Z_sampler$samples[i,,])[idx,],col="green")
@@ -321,6 +323,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
       if (i > lag){
         lines(apply(F_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
       }
+      # Fig 3: Random effects
       plot(data_generated$Z[idx,],type="l",col="blue",lty=2,main=paste0("Z"," iter=",i))
       points((data_generated$Y - ((data_generated$F.true - data_generated$Z)))[idx,])
       points((data_generated$Y - F_sampler$samples[i,,])[idx,],col="green")
@@ -330,7 +333,8 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
       if (i > lag){
         lines(apply(Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
       }
-      plot(F_hypers$lambda[i,])
+      # Fig 4: Horseshoe scales
+      plot(F_hypers$lambda[i,]*F_hypers$tau[i])
       abline(v=true)
       Sys.sleep(0.1)
       par(mfrow=c(1,1))

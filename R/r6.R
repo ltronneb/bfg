@@ -224,7 +224,7 @@ HMC = R6Class(
 HMC_samplerF = R6Class("F_hypers",
                        inherit = HMC,
                        public = list(
-                         initialize = function(slab_scale = 1, slab_df = 4.0, 
+                         initialize = function(slab_scale = 1.0, slab_df = 4.0, 
                                                nu_local = 1, nu_global = 1,...){
                            super$initialize(...)
                            self$data$slab_scale = slab_scale
@@ -409,7 +409,8 @@ HMC_samplerZ = R6Class("Z_hypers",
                            sweep(self$phi_tilde,1,rowSums(self$phi_tilde),FUN="/")
                          },
                          u = function(){
-                           1/(1+exp(-self$logit_u))
+                           # 1/(1+exp(-self$logit_u))
+                           plogis(self$logit_u)
                          },
                          omega = function(){
                            exp(self$logit_u)
@@ -629,11 +630,14 @@ KroneckerMatheronSamplerF = R6Class("F_sampler",
                                             eta1 = sweep(eta1,2,sqrt(Dt),'*')
                                             f1.prior = Qx%*%eta1%*%t(Qt)
                                             eta2 = matrix(rnorm(n*m),ncol=m)
-                                            eta2 = sweep(eta2,1,sqrt(Dz),'*')
-                                            eta2 = sweep(eta2,2,sqrt(Dt),'*')
-                                            z1.prior = Qz%*%eta2%*%t(Qt)
-                                            error = sigma*matrix(rnorm(n*m),ncol=m)
-                                            eta = Y-f1.prior-z1.prior-error
+                                            D = sqrt(outer(Dz,Dt) + sigma^2)
+                                            eta2 = D*eta2
+                                            # eta2 = sweep(eta2,1,sqrt(Dz),'*')
+                                            # eta2 = sweep(eta2,2,sqrt(Dt),'*')
+                                            # z1.prior = Qz%*%eta2%*%t(Qt)
+                                            error = Qz%*%eta2%*%t(Qt)
+                                            # error = sigma*matrix(rnorm(n*m),ncol=m)
+                                            eta = Y-f1.prior-error
                                             # Now compute correction, note subtraction of c^2 meaning no intercept
                                             correction = ((Kx%*%Qg)%*%((1/(Dg%*% t(Dt)+sigma^2))*t(Qg)%*%eta%*%Qt)%*%t(Kt%*%Qt))
                                             f1.prior + correction

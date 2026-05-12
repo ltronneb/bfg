@@ -87,11 +87,12 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
 #' @param N_samples : number of posterior samples used to compute rho
 #' @param N_samples_weights : number of posterior samples used to compute weights
 #' @param plot : boolean, display plot or not?
+#' @param alpha : alpha level for variable selection
 #' 
 #' @return selected : list of selected coefficients
 #'
 #'@export
-select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_weights = 10, plot=T){
+select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_weights = 10, plot=T, alpha=0.1){
   # Do some initial setup
   X = fit$data$X
   p = ncol(X)
@@ -146,7 +147,13 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
     rho2[ii] = XB2 / (XB2 + post_trace)
     
     # lam version
-    rho2_lam[ii,] = XB2 / (XB2 + post_trace + apply(beta_lam,1,function(b) sum((XB-(X_sub0%*%b))^2)))
+    err_lam <- numeric(L) # Summing over every lambda value
+    for (ell in 1:L) {
+      B_lam <- beta_lam[ell,,]              # (1 + K) x m
+      XB_sparse <- X_sub0 %*% B_lam         # n x m
+      err_lam[ell] <- sum((XB - XB_sparse)^2)
+    }
+    rho2_lam[ii,] <- XB2 / (XB2 + post_trace + err_lam)
   }
   # Plot in terms of model size
   # And for model size
@@ -159,11 +166,11 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   if (plot){
     plot(NA,ylim=c(0,1),xlim=c(0,max(model_size)-1),xlab="Model Size")
     abline(h=mean(rho2))
-    abline(h=quantile(rho2,probs=c(0.05,0.95)))
+    abline(h=quantile(rho2,probs=c(alpha/2,1-alpha/2)))
   }
   for (l in 1:LL){
     ind_max = max(which(model_size == unq_size[l]))
-    rr = quantile(rho2_lam[,ind_max],probs=c(0.05,0.95))
+    rr = quantile(rho2_lam[,ind_max],probs=c(alpha/2,1-alpha/2))
     rho2_lam_quantiles[c(1,2),l] = rr
     rho2_lam_quantiles[3,l] = ind_max
     if (plot){
