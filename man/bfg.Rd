@@ -17,7 +17,10 @@ bfg(
   compute_betas = F,
   verbose = F,
   beta_gamma_a = 1,
-  beta_gamma_b = 40
+  beta_gamma_b = 40,
+  slab_scale = 1,
+  slab_df = 4,
+  temp_schedule = NULL
 )
 }
 \arguments{
@@ -46,6 +49,12 @@ bfg(
 \item{beta_gamma_a}{: hyperparameter for the beta prior on variance explained by random effects}
 
 \item{beta_gamma_b}{: hyperparameter for the beta prior on variance explained by random effects}
+
+\item{slab_scale}{: a priori guess of scale for surviving coefficient functions}
+
+\item{slab_df}{: degrees of freedom for t-distributed surviving coefficient functions}
+
+\item{temp_schedule}{: vector of length N_iter defining a temperature schedule. Defaults to NULL}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model

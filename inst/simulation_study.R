@@ -16,7 +16,6 @@ m = 30
 ell0 = 0.1
 p0 = 10
 RSNR = 5
-# RZ2 = 0.1
 rho = 0.75
 
 rz2_list = list(0,0.1,0.5)

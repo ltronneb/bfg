@@ -9,7 +9,8 @@ select_betas(
   max_model_size = 100,
   N_samples = NULL,
   N_samples_weights = 10,
-  plot = T
+  plot = T,
+  alpha = 0.1
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ select_betas(
 \item{N_samples_weights}{: number of posterior samples used to compute weights}
 
 \item{plot}{: boolean, display plot or not?}
+
+\item{alpha}{: alpha level for variable selection}
 }
 \value{
 selected : list of selected coefficients
