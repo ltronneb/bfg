@@ -8,6 +8,7 @@ select_betas(
   fit,
   max_model_size = 100,
   N_samples = NULL,
+  include_re = T,
   N_samples_weights = 10,
   plot = T,
   alpha = 0.1

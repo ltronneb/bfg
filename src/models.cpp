@@ -465,8 +465,9 @@ stan::math::var gp_1dloglik_analyticgrad(const Eigen::MatrixXd& X,
   ////////////////////////////////////////////////
   // QUADRATIC SOLVE
   ////////////////////////////////////////////////
-  // First compute a helper quantity we will use throughout
+  // First compute some helper quantities we will use throughout
   Eigen::MatrixXd KFU = llt->solve(F * Qt);
+  Eigen::MatrixXd KinvX = llt->solve(X);
   double quad_solve = (((F * Qt).transpose() * KFU).diagonal().array() / Dt.array()).sum();
   
   //GRADIENTS
@@ -483,12 +484,12 @@ stan::math::var gp_1dloglik_analyticgrad(const Eigen::MatrixXd& X,
     Eigen::VectorXd KFUT_xj = KFU.transpose() * xj;
     double scale = 2.0 * tau * tau * lambda(j);
     quad_solve_grad(1 + j) = -scale * (KFUT_xj.array().square() / Dt.array()).sum();
-    Eigen::MatrixXd xj_solve_mat = llt->solve(xj);
-    Eigen::VectorXd xj_solve = xj_solve_mat.col(0);
-    log_det_grad(1 + j) = double(m) * scale * xj.dot(xj_solve);
+    // Eigen::MatrixXd xj_solve_mat = llt->solve(xj);
+    // Eigen::VectorXd xj_solve = xj_solve_mat.col(0);
+    log_det_grad(1 + j) = double(m) * scale * xj.dot(KinvX.col(j));
     // Computing for tau
     quad_solve_grad_tau -= 2.0 * tau * lambda(j) * lambda(j) * (KFUT_xj.array().square() / Dt.array()).sum();
-    log_det_grad_tau += double(m) * 2.0 * tau *lambda(j) * lambda(j) * xj.dot(xj_solve);
+    log_det_grad_tau += double(m) * 2.0 * tau *lambda(j) * lambda(j) * xj.dot(KinvX.col(j));
   }
   
   // wrt tau
@@ -533,14 +534,14 @@ stan::math::var gp_1dloglik_analyticgrad_SKIM(const Eigen::MatrixXd& X,
                                               const Eigen::VectorXd& Dt, // Eigen-decomp of K_t
                                               const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1>& theta,
                                               bool first_step){
-  
+
   // Define some constants
   int n = X.rows();
   int p = X.cols();
   int m = Qt.rows();
-  
+
   // First thing I pull out the values of theta
-  Eigen::VectorXd theta_val = theta.val(); 
+  Eigen::VectorXd theta_val = theta.val();
   // And pull out the things I care about
   double tau1 = theta_val(0);
   double tau2 = theta_val(1);
@@ -548,7 +549,7 @@ stan::math::var gp_1dloglik_analyticgrad_SKIM(const Eigen::MatrixXd& X,
   double c = theta_val(p + 2);
   // Define the diagonal term in XLXT
   Eigen::VectorXd diag = lambda.array().square();
-  
+
   // Kernel construction
   // First init cache
   const auto& cache = get_cache();
@@ -557,14 +558,14 @@ stan::math::var gp_1dloglik_analyticgrad_SKIM(const Eigen::MatrixXd& X,
   Eigen::MatrixXd xlxt = compute_XLambdaXt_core(cache.X_rcpp,diag);
   Eigen::MatrixXd x2lx2t = compute_XLambdaXt_core(cache.X_sq_rcpp,diag);
   Eigen::MatrixXd xlxt_poly = (xlxt.array() + 1.0).array().square().matrix();
-  Eigen::MatrixXd K_val = (0.5 * tau2 * tau2 * xlxt_poly).array() - 
+  Eigen::MatrixXd K_val = (0.5 * tau2 * tau2 * xlxt_poly).array() -
     (0.5 * tau2 * tau2)*x2lx2t.array() + (tau1 * tau1 - tau2 * tau2)*xlxt.array();
   K_val.array() += (c * c) - (0.5 * tau2 * tau2);
   K_val.diagonal().array() += 1e-6; // little jitter
   // Logic for low-rank adaptation -- turned off for now
   static std::unique_ptr<LLTBase> llt; // This is static, so persists
   llt = std::make_unique<FullLLT>(K_val);
-  
+
   ////////////////////////////////////////////////
   // QUADRATIC SOLVE AND LOG-DET
   ////////////////////////////////////////////////
@@ -574,72 +575,62 @@ stan::math::var gp_1dloglik_analyticgrad_SKIM(const Eigen::MatrixXd& X,
   double log_det_Kf = llt->log_det(n);
   double log_det_Kt = Dt.array().log().sum();
   double log_det_val = (double(m) * log_det_Kf + double(n) * log_det_Kt);
-  
+
   // Now gradients
   Eigen::VectorXd quad_solve_grad(p + 3); // Will store them here
   Eigen::VectorXd log_det_grad(p + 3);
-  
-  
+
+
   // Also here some helper quantities used multiple times
-  Eigen::MatrixXd KPOLY = llt->solve((xlxt.array() + 1.0).matrix());
-  Eigen::MatrixXd KPOLY2 = llt->solve(xlxt_poly); 
-  double log_det_grad_tau1 = 0.0; // these will be built iteratively
-  double log_det_grad_tau2 = 0.0; // these will be built iteratively
+  Eigen::MatrixXd Kinv = llt->solve(Eigen::MatrixXd::Identity(n,n));
+  Eigen::MatrixXd KPOLY = (Kinv.array() * xlxt.array()).matrix();
   
+  Eigen::MatrixXd KinvX = llt->solve(X);
+  Eigen::MatrixXd Xsq = X.array().square().matrix();
+  Eigen::MatrixXd KinvXsq = llt->solve(Xsq);
+  Eigen::MatrixXd KPOLYX = KPOLY * X;
+
   // wrt c
   {
     Eigen::VectorXd ones = Eigen::VectorXd::Ones(n);
     double scale = 2.0*c;
     Eigen::MatrixXd dkdtheta = scale * (ones * ones.transpose());
-    Eigen::MatrixXd ones_solve_mat = llt->solve(ones);
-    Eigen::VectorXd ones_solve = ones_solve_mat.col(0);
     quad_solve_grad(p + 2) = -((KFU.transpose() * dkdtheta * KFU).diagonal().array() / Dt.array()).sum();
-    log_det_grad(p + 2) = double(m) * scale * ones.dot(ones_solve);
-    // build tau gradients iteratively
-    log_det_grad_tau2 -= ones.dot(ones_solve);
+    log_det_grad(p + 2) = double(m) * (Kinv.array() * dkdtheta.array()).sum();
   }
-  
+
   // wrt lambdas
   for (int j = 0; j < p; ++j){
     Eigen::VectorXd xj = X.col(j);
     Eigen::VectorXd xj_sq = X.col(j).array().square();
     Eigen::MatrixXd xj_outer = 2 * lambda(j) * (xj * xj.transpose());
     Eigen::MatrixXd xj_sq_outer = 2 * lambda(j) * (xj_sq * xj_sq.transpose());
-    Eigen::MatrixXd dkdtheta = (tau2 * tau2)*((1.0 + xlxt.array()) * xj_outer.array()).matrix() - (0.5 * tau2 * tau2)*xj_sq_outer + (tau1 * tau1 - tau2 * tau2) * xj_outer;
+    Eigen::MatrixXd dkdtheta = (tau2 * tau2)*(xlxt.array() * xj_outer.array()).matrix() - (0.5 * tau2 * tau2)*xj_sq_outer + (tau1 * tau1) * xj_outer;
     quad_solve_grad(2+j) = -((KFU.transpose() * dkdtheta * KFU).diagonal().array() / Dt.array()).sum();
-    Eigen::MatrixXd xj_solve_mat = llt->solve(xj);
-    Eigen::VectorXd xj_solve = xj_solve_mat.col(0);
-    Eigen::MatrixXd xj_sq_solve_mat = llt->solve(xj_sq);
-    Eigen::VectorXd xj_sq_solve = xj_sq_solve_mat.col(0);
     double scale = 2.0 * lambda(j) * double(m);
-    log_det_grad(2+j) = scale * ((tau2 * tau2)*xj.dot(KPOLY * xj) - (0.5*tau2*tau2)*xj_sq.dot(xj_sq_solve) + (tau1 * tau1 - tau2 * tau2)*xj.dot(xj_solve));
-    // build tau gradients iteratively
-    log_det_grad_tau1 += 2.0 * tau1 * (lambda(j) * lambda(j)) * xj.dot(xj_solve);
-    log_det_grad_tau2 -= 2.0 * (lambda(j) * lambda(j)) * xj.dot(xj_solve) + (lambda(j) * lambda(j))*xj_sq.dot(xj_sq_solve);
+    log_det_grad(2+j) = scale * ((tau2 * tau2) * xj.dot(KPOLYX.col(j)) - (0.5 * tau2 * tau2) * xj_sq.dot(KinvXsq.col(j)) + (tau1 * tau1) * xj.dot(KinvX.col(j)));
   }
   // wrt tau1
   {
     Eigen::MatrixXd dkdtheta = 2.0 * tau1 * xlxt;
     quad_solve_grad(0) = -((KFU.transpose() * dkdtheta * KFU).diagonal().array() / Dt.array()).sum();
-    log_det_grad(0) = double(m) * log_det_grad_tau1;
+    log_det_grad(0) = double(m) * (Kinv.array() * dkdtheta.array()).sum();
   }
   // wrt tau2
   {
-    Eigen::MatrixXd dkdtheta = (tau2 * xlxt_poly) - (tau2 * x2lx2t) - (2 * tau2 *xlxt);
-    dkdtheta.array() -= tau2;
+    Eigen::MatrixXd dkdtheta = tau2 * (xlxt.array().square().matrix() - x2lx2t);
     quad_solve_grad(1) = -((KFU.transpose() * dkdtheta * KFU).diagonal().array() / Dt.array()).sum();
-    log_det_grad(1) = double(m) * tau2 * (KPOLY2.diagonal().array().sum() + log_det_grad_tau2);
+    log_det_grad(1) = double(m) * (Kinv.array() * dkdtheta.array()).sum();
   }
-  
-  
+
+
   // Setting up the var objects
   stan::math::var quad_solve_var = stan::math::precomputed_gradients(quad_solve,theta,quad_solve_grad);
   stan::math::var log_det_var = stan::math::precomputed_gradients(log_det_val,theta,log_det_grad);
-  
-  return -0.5*(quad_solve_var + log_det_var);
-  
-}
 
+  return -0.5*(quad_solve_var + log_det_var);
+
+}
 
 
 // A version here for \theta_z and variance
@@ -883,8 +874,7 @@ T gp_kron_logpost_1d_SKIM(// Data
   // Construct higher-order parameters
   T log_tau0 = log(tau0_prime) - log_sum_exp(0.5 * Dt.array().log());
   auto log_u = log(slab_scale) + 0.5*log_u_aux;
-  // auto log_v = 0.5*log_v_aux;
-  auto log_v = log_v_aux;
+  auto log_v = log(slab_scale) + 0.5*log_v_aux;
   
   auto log_tau1 = log_tau_aux_1 + 0.5*log_tau_aux_2 + log_tau0;
   auto log_lambda_tilde = add(log_lambda_tilde_aux_1, 0.5*log_lambda_tilde_aux_2);
@@ -997,7 +987,7 @@ T gp_kron_logpost_1d_re_noise(const Eigen::MatrixXd& Qt,
   // Transform parameters
   Eigen::Matrix<T, Eigen::Dynamic, 1> phi_tilde = exp(log_phi_tilde); // Gamma distributed
   Eigen::Matrix<T, Eigen::Dynamic, 1> phi = exp(log_softmax(log_phi_tilde)); // Dirichlet distributed
-  T u = inv_logit(logit_u); // Beta distribute
+  T u = inv_logit(logit_u); // Beta distributed
   T omega = exp(logit_u); // Beta prime distributed
   T omega_scaled = omega * eta; // Scaled beta prime distributed
 
@@ -1016,7 +1006,7 @@ T gp_kron_logpost_1d_re_noise(const Eigen::MatrixXd& Qt,
   auto log_prior_log_phi_tilde = stan::math::gamma_lpdf(phi_tilde,dir_a,1) + sum(log_phi_tilde);
   auto log_prior_logit_u = stan::math::beta_lpdf(u, beta_gamma_a, beta_gamma_b) + log(u) + log1m(u);
   // auto log_prior_log_sigma = 0.0; // Flat prior in log-space
-  auto log_prior_log_sigma = stan::math::normal_lpdf(sigma, 0, 1);
+  auto log_prior_log_sigma = stan::math::normal_lpdf(sigma, 0, 1) + log_sigma;
 
   // Log posterior returned
   auto logpost = temperature * loglik +

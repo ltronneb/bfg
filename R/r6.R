@@ -505,8 +505,9 @@ HMC_samplerSKIM = R6Class("F_hypers",
                               as.integer(self$N_params - 5)/2 # Change this to n-4 after
                             },
                             v = function(){ # And comment out this
+                              v = exp(log(self$data$slab_scale) + 0.5*self$samples[,2*self$p+5])
                               # v = exp(0.5*self$samples[,2*self$p+5])
-                              v = exp(self$samples[,2*self$p+5])
+                              # v = exp(self$samples[,2*self$p+5])
                               return(v)
                             },
                             tau2 = function(){
@@ -1113,7 +1114,8 @@ HMC_samplerZ_noise = R6Class("Z_hypers",
                                  sweep(self$phi_tilde,1,rowSums(self$phi_tilde),FUN="/")
                                },
                                u = function(){
-                                 1/(1+exp(-self$logit_u))
+                                 # 1/(1+exp(-self$logit_u))
+                                 plogis(self$logit_u)
                                },
                                omega = function(){
                                  exp(self$logit_u)

@@ -21,6 +21,9 @@ rho = 0.75
 rz2_list = list(0,0.1,0.5)
 p_list = list(200,500,1000)
 
+p = 1000
+RZ2 = 0.1
+
 set.seed(42)
 
 for (RZ2 in rz2_list){
@@ -34,12 +37,15 @@ for (RZ2 in rz2_list){
       Y = data_generated$Y
       X = data_generated$X
       t = data_generated$T
-      true = which(apply(data_generated$B,1,function(x) any(x != 0)))
+      true = which(apply(data_generated$B,1,function(sx) any(x != 0)))
       tryCatch({
         # Run bfg
-        fit = bfg(Y,X,t,p0=floor(0.1*p),data_generated=data_generated,
-                  interactions = F, plotting = F,thinning = 1, N_iter=2000, verbose=F,
-                  compute_betas = T, beta_gamma_a = 1, beta_gamma_b = 40)
+        fit = bfg(Y,X,t,p0=floor(0.2*p),data_generated=data_generated,
+                  interactions = F, plotting = T,thinning = 1, N_iter=2000, verbose=T,
+                  compute_betas = F, beta_gamma_a = 1, beta_gamma_b = 100, slab_scale = 0.5,
+                  temp_schedule = c(seq(0,1,length.out=200)^2,rep(1,2000-200))
+                  # temp_schedule = c(rep(0,100),rep(1,2000-100))
+                  )
         # Pull out betas
         beta.hat = fit$beta.hat[1001:2000,,]
         beta.mean = apply(beta.hat,c(2,3),mean)

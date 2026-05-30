@@ -92,7 +92,7 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
 #' @return selected : list of selected coefficients
 #'
 #'@export
-select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_weights = 10, plot=T, alpha=0.1){
+select_betas = function(fit, max_model_size = 100, N_samples = NULL, include_re = T, N_samples_weights = 10, plot=T, alpha=0.1){
   # Do some initial setup
   X = fit$data$X
   p = ncol(X)
@@ -141,8 +141,12 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
     XB2 = sum((XB)^2)
     
     # Random effect trace
-    post_trace = m*sum(Z_hypers$gamma[i,]^2) + n*m*Z_hypers$sigma_sq[i]
-    
+    if (include_re){
+      post_trace = m*sum(Z_hypers$gamma[i,]^2) + n*m*Z_hypers$sigma_sq[i]
+    } else {
+      post_trace = n*m*Z_hypers$sigma_sq[i]
+    }
+   
     # Zeroth-version
     rho2[ii] = XB2 / (XB2 + post_trace)
     
@@ -162,24 +166,26 @@ select_betas = function(fit, max_model_size = 100, N_samples = NULL, N_samples_w
   unq_size = unique(model_size)
   LL = length(unq_size)
   # Will collect some things here
+  # alpha=0.1
   rho2_lam_quantiles = matrix(NA,ncol=LL,nrow=3)
   if (plot){
     plot(NA,ylim=c(0,1),xlim=c(0,max(model_size)-1),xlab="Model Size")
-    abline(h=mean(rho2))
-    abline(h=quantile(rho2,probs=c(alpha/2,1-alpha/2)))
+    abline(h=median(rho2))
+    abline(h=quantile(rho2,probs=c(alpha/2,1-alpha/2)),lty=2)
   }
+  # alpha=0.1
   for (l in 1:LL){
     ind_max = max(which(model_size == unq_size[l]))
     rr = quantile(rho2_lam[,ind_max],probs=c(alpha/2,1-alpha/2))
     rho2_lam_quantiles[c(1,2),l] = rr
     rho2_lam_quantiles[3,l] = ind_max
     if (plot){
-      points(unq_size[l]-1,mean(rho2_lam[,ind_max]))
+      points(unq_size[l]-1,median(rho2_lam[,ind_max]))
       segments(unq_size[l]-1,rr[1],unq_size[l]-1,rr[2])
     }
   }
   # Check if a model reaches the threshold?
-  tresh_reached = which(rho2_lam_quantiles[2,]>=mean(rho2))
+  tresh_reached = which(rho2_lam_quantiles[2,]>=median(rho2))
   if (length(tresh_reached)==0){
     # We were unable to reach threshold
     n_selected = max(unq_size) - 1

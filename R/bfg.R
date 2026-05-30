@@ -96,9 +96,9 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                               Y = F0,
                                                               tau0_prime = tau0_prime,
                                                               nugget = 1e-6, ell = ell0),
-                                   N_iter = N_iter,verbose=verbose)
-    F_hypers$control$max_L = 2^10
-    F_hypers$control$delta = 0.95
+                                   N_iter = N_iter,verbose=verbose,
+                                   slab_scale = slab_scale, slab_df = slab_df)
+    F_hypers$control$delta = 0.9
     F_sampler = KroneckerMatheronSamplerSKIM$new(data = list(X=X,
                                                              t=t,
                                                              Y=working_Y,
@@ -118,10 +118,10 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   
   # Set up eta parameter for r2d2 prior
   eta0 = rep(NA,N_iter)
-  eta0[1] = n*(F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + sigma0^2)
-  if (interactions){
-    eta0[1] = sum(diag(F_sampler$Kx))+n*sigma0^2
-  }
+  # eta0[1] = n*(F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + sigma0^2)
+  # if (interactions){
+  eta0[1] = sum(diag(F_sampler$Kx))+n*sigma0^2
+  # }
   
   # Set up samplers for Z
   # Temperature scheduler
@@ -212,11 +212,11 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
     
     
     # Sample Z_hypers
-    eta = n*(F_hypers$c[i]^2 + sum((F_hypers$tau[i]*F_hypers$lambda[i,])^2) + Z_hypers$sigma[i-1]^2)
+    # eta = n*(F_hypers$c[i]^2 + sum((F_hypers$tau[i]*F_hypers$lambda[i,])^2) + Z_hypers$sigma[i-1]^2)
     # TODO change this for interactions!
-    if (interactions){
-      eta = sum(diag(F_sampler$Kx))+n*Z_hypers$sigma[i-1]^2
-    }
+    # if (interactions){
+    eta = sum(diag(F_sampler$Kx)) + n*Z_hypers$sigma[i-1]^2
+    # }
     Z_hypers$data$eta[i] = eta
     Z_hypers$data$Y = working_Y - F_sampler$samples[i-1,,]
     Z_hypers$sample()
@@ -306,13 +306,13 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
       lag = 100
       par(mfrow=c(2,2))
       # Fig 1: Data fit
-      plot(data_generated$F.true[idx,],col="blue",lty=2,type="l",main=paste0("F + Z"," iter=",i))
-      points(data_generated$Y[idx,])
-      lines(F_sampler$samples[i,idx,]+Z_sampler$samples[i,idx,],col="red")
-      if (i > lag){
-        lines(apply(F_sampler$samples[(i-lag):i,idx,] + Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
-      }
-      # lines(F_sampler$samples[i,idx,],col="red")
+      plot(Z_hypers$logit_u)
+      # plot(data_generated$F.true[idx,],col="blue",lty=2,type="l",main=paste0("F + Z"," iter=",i))
+      # points(data_generated$Y[idx,])
+      # lines(F_sampler$samples[i,idx,]+Z_sampler$samples[i,idx,],col="red")
+      # if (i > lag){
+      #   lines(apply(F_sampler$samples[(i-lag):i,idx,] + Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
+      # }
       # Fig 2: Fixed effects
       plot((data_generated$F.true - data_generated$Z)[idx,],type="l",col="blue",lty=2, main=paste0("F"," iter=",i))
       points((data_generated$Y - data_generated$Z)[idx,])
