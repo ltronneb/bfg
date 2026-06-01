@@ -7,8 +7,8 @@
 select_betas(
   fit,
   max_model_size = 100,
-  N_samples = NULL,
   include_re = T,
+  N_samples = NULL,
   N_samples_weights = 10,
   plot = T,
   alpha = 0.1
@@ -18,6 +18,8 @@ select_betas(
 \item{fit}{: bfg object}
 
 \item{max_model_size}{: the maximum size of the model}
+
+\item{include_re}{: bool, include random effect noise?}
 
 \item{N_samples}{: number of posterior samples used to compute rho}
 

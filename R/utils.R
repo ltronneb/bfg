@@ -84,6 +84,7 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
 #' 
 #' @param fit : bfg object
 #' @param max_model_size : the maximum size of the model
+#' @param include_re : bool, include random effect noise?
 #' @param N_samples : number of posterior samples used to compute rho
 #' @param N_samples_weights : number of posterior samples used to compute weights
 #' @param plot : boolean, display plot or not?
@@ -92,7 +93,10 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
 #' @return selected : list of selected coefficients
 #'
 #'@export
-select_betas = function(fit, max_model_size = 100, N_samples = NULL, include_re = T, N_samples_weights = 10, plot=T, alpha=0.1){
+select_betas = function(fit, max_model_size = 100, include_re = T,
+                        N_samples = NULL, 
+                        N_samples_weights = 10, plot=T, 
+                        alpha=0.1){
   # Do some initial setup
   X = fit$data$X
   p = ncol(X)
