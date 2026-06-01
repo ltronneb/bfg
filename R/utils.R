@@ -14,6 +14,10 @@
 #' 
 #' @export
 get_beta = function(fit, k = NULL, N_samples = NULL){
+  # Interaction warning
+  if (fit$data$interactions){
+    warning("This function will not generate interaction effects")
+  }
   # Pull out some stuff
   X = fit$data$X
   p = ncol(X)
@@ -24,7 +28,6 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
   }
   F_sampler = fit$samplers$F_sampler
   F_hypers = fit$samplers$F_hypers
-  # ell_sampler = fit$samplers$ell_sampler
   # Which coefficients are we looking to pull out?
   if (is.null((k))){
     # Then we pull out everything
@@ -48,14 +51,11 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
   Dx = F.grp[["Dx"]]
   # Now iterate from final sample
   for (ii in 1:N_samples){
-    # print(i)
     i = (N_iter-N_samples) + ii
     # Pull out current values
     fi = F_sampler$samples[i,,]
     lambda = F_hypers$lambda[i,]
     tau = F_hypers$tau[i]
-    # c = F_hypers$c[i]
-    # ell = ell_sampler$ell[i]
     Qti = Qt[i,,]
     Dti = Dt[i,]
     Qxi = Qx[i,,]
@@ -97,6 +97,10 @@ select_betas = function(fit, max_model_size = 100, include_re = T,
                         N_samples = NULL, 
                         N_samples_weights = 10, plot=T, 
                         alpha=0.1){
+  # Interaction warning
+  if (fit$data$interactions){
+    warning("This function will not generate interaction effects")
+  }
   # Do some initial setup
   X = fit$data$X
   p = ncol(X)

@@ -18,11 +18,8 @@ p0 = 10
 RSNR = 5
 rho = 0.75
 
-rz2_list = list(0,0.1,0.5)
+rz2_list = list(0.1,0.5)
 p_list = list(200,500,1000)
-
-p = 1000
-RZ2 = 0.1
 
 set.seed(42)
 
@@ -42,9 +39,8 @@ for (RZ2 in rz2_list){
         # Run bfg
         fit = bfg(Y,X,t,p0=floor(0.2*p),data_generated=data_generated,
                   interactions = F, plotting = T,thinning = 1, N_iter=2000, verbose=T,
-                  compute_betas = F, beta_gamma_a = 1, beta_gamma_b = 100, slab_scale = 0.5,
-                  temp_schedule = c(seq(0,1,length.out=200)^2,rep(1,2000-200))
-                  # temp_schedule = c(rep(0,100),rep(1,2000-100))
+                  compute_betas = F, beta_gamma_a = 1/20, beta_gamma_b = 20, slab_scale = 0.1,
+                  temp_schedule = c(seq(0,1,length.out=500)^3,rep(1,2000-500))
                   )
         # Pull out betas
         beta.hat = fit$beta.hat[1001:2000,,]
