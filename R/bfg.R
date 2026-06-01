@@ -98,7 +98,6 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                               nugget = 1e-6, ell = ell0),
                                    N_iter = N_iter,verbose=verbose,
                                    slab_scale = slab_scale, slab_df = slab_df)
-    F_hypers$control$delta = 0.9
     F_sampler = KroneckerMatheronSamplerSKIM$new(data = list(X=X,
                                                              t=t,
                                                              Y=working_Y,

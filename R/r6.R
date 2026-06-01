@@ -31,7 +31,7 @@ MCMC = R6Class(
       if (!is.null(N_params)){
         if (!is.null(init)){
           self$samples[1,] = init
-        } else {self$samples[1,] = runif(N_params,min=-2,max=2)}
+        } else {self$samples[1,] = runif(N_params,min=0,max=2)}
       }
       if (!is.null(h5file)){
         self$h5file <- h5file
@@ -59,7 +59,7 @@ HMC = R6Class(
       traj_length = 1.0, # target trajectory length
       max_L = 2^6, # maximum number of leapfrog steps to perform
       t0 = 10, # Adaptation iteration offset
-      delta = 0.8, # Target acceptance probability
+      delta = 0.9, # Target acceptance probability
       kappa = 0.75, # Adapatation relaxation exponent
       gamma = 0.05, # adaptation regularization scale
       warmup = NULL,
