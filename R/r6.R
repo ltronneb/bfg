@@ -31,7 +31,7 @@ MCMC = R6Class(
       if (!is.null(N_params)){
         if (!is.null(init)){
           self$samples[1,] = init
-        } else {self$samples[1,] = runif(N_params,min=0,max=2)}
+        } else {self$samples[1,] = runif(N_params,min=-2,max=2)}
       }
       if (!is.null(h5file)){
         self$h5file <- h5file
@@ -83,15 +83,13 @@ HMC = R6Class(
       window_counter = 0, # counting windows
       reject_counter = 0 # count rejections
     ),
-    initialize = function(#N_iter = 1000,
-      #N_params = NULL,
-      #data = NULL,
+    initialize = function(
       control = NULL,
-      #init = NULL,
-      L0 = self$control$max_L, epsilon0 = 0.0001, 
+      L0 = self$control$max_L, 
+      epsilon0 = 1,  # it appears epsilon0 = 1 is Stan default(?)
       alpha0 = 1, ...){
       if (!is.null(control)){
-        self$control = modifyList(control, self$control)
+        self$control = modifyList(self$control, control)
       }
       # Some derived parameters that need to be set manually in init
       self$control$window = 2^(seq(0,4))*self$control$init_window

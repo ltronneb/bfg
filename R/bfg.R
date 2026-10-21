@@ -16,6 +16,8 @@
 #'@param slab_scale : a priori guess of scale for surviving coefficient functions
 #'@param slab_df : degrees of freedom for t-distributed surviving coefficient functions
 #'@param temp_schedule : vector of length N_iter defining a temperature schedule. Defaults to NULL
+#'@param HMC_controls_F : list of options for HMC sampler of F hypers
+#'@param HMC_conrtols_Z : list of options for HMC sampler of Z hypers
 #'
 #'@export
 bfg = function(Y,X,t,p0,data_generated=NULL,
@@ -24,7 +26,9 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                verbose = F, 
                beta_gamma_a = 1, beta_gamma_b = 40,
                slab_scale = 1.0, slab_df = 4.0,
-               temp_schedule = NULL){
+               temp_schedule = NULL,
+               HMC_controls_F = NULL,
+               HMC_controls_Z = NULL){
   # TODO check inputs are correctly formatted and dimensioned
   X = as.matrix(X)
   Y = as.matrix(Y)
@@ -97,7 +101,9 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                               tau0_prime = tau0_prime,
                                                               nugget = 1e-6, ell = ell0),
                                    N_iter = N_iter,verbose=verbose,
-                                   slab_scale = slab_scale, slab_df = slab_df)
+                                   slab_scale = slab_scale, slab_df = slab_df,
+                                   control = HMC_controls_F)
+
     F_sampler = KroneckerMatheronSamplerSKIM$new(data = list(X=X,
                                                              t=t,
                                                              Y=working_Y,
@@ -114,7 +120,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                  init = F0,
                                                  h5file = bfg_h5)
   }
-  
+
   # Set up eta parameter for r2d2 prior
   eta0 = rep(NA,N_iter)
   # eta0[1] = n*(F_hypers$c[1]^2 + sum((F_hypers$tau[1]*F_hypers$lambda[1,])^2) + sigma0^2)
@@ -136,8 +142,11 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                                                   nugget = 1e-06, ell = ell0,
                                                                   eta = eta0,
                                                                   beta_gamma_a = beta_gamma_a, beta_gamma_b =  beta_gamma_b, dir_a = 1),
-                                    N_iter = N_iter,verbose=verbose)
+                                    N_iter = N_iter,verbose=verbose,
+                                    control=HMC_controls_Z)
   Z_hypers$samples[1,] = runif(n+2,min=-2,max=2) # Init these
+  
+  
   Z_sampler = KroneckerMatheronSamplerZ$new(data = list(X=diag(n),
                                                         t=t,
                                                         Y=working_Y-F_sampler$samples[1,,],
@@ -153,6 +162,18 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
                                  t = t, 
                                  s2 = Z_hypers$sigma_sq[1],
                                  prop_sigma = 0.005)
+  
+  
+  # Modify lists
+  # if (!is.null(HMC_controls_F)){
+  #   F_hypers$control = modifyList(F_hypers$control,HMC_controls_F)
+  #   F_hy
+  # }
+  # if (!is.null(HMC_controls_Z)){
+  #   Z_hypers$control = modifyList(Z_hypers$control,HMC_controls_Z)
+  # }
+  
+  
   # Container for betas
   if (compute_betas){
     beta.hat = array(0.0,dim=c(N_iter,p,m))
@@ -313,15 +334,16 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
       #   lines(apply(F_sampler$samples[(i-lag):i,idx,] + Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
       # }
       # Fig 2: Fixed effects
-      plot((data_generated$F.true - data_generated$Z)[idx,],type="l",col="blue",lty=2, main=paste0("F"," iter=",i))
-      points((data_generated$Y - data_generated$Z)[idx,])
-      points((data_generated$Y - Z_sampler$samples[i,,])[idx,],col="green")
-      lines(F_sampler$samples[i,idx,],col="red")
-      lines(F_sampler$samples[i,idx,] + 2*(Z_hypers$sigma[i]),col="red",lty=2)
-      lines(F_sampler$samples[i,idx,] - 2*(Z_hypers$sigma[i]),col="red",lty=2)
-      if (i > lag){
-        lines(apply(F_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
-      }
+      plot(log(F_hypers$tau))
+      # plot((data_generated$F.true - data_generated$Z)[idx,],type="l",col="blue",lty=2, main=paste0("F"," iter=",i))
+      # points((data_generated$Y - data_generated$Z)[idx,])
+      # points((data_generated$Y - Z_sampler$samples[i,,])[idx,],col="green")
+      # lines(F_sampler$samples[i,idx,],col="red")
+      # lines(F_sampler$samples[i,idx,] + 2*(Z_hypers$sigma[i]),col="red",lty=2)
+      # lines(F_sampler$samples[i,idx,] - 2*(Z_hypers$sigma[i]),col="red",lty=2)
+      # if (i > lag){
+      #   lines(apply(F_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
+      # }
       # Fig 3: Random effects
       plot(data_generated$Z[idx,],type="l",col="blue",lty=2,main=paste0("Z"," iter=",i))
       points((data_generated$Y - ((data_generated$F.true - data_generated$Z)))[idx,])

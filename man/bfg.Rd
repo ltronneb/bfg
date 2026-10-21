@@ -20,7 +20,9 @@ bfg(
   beta_gamma_b = 40,
   slab_scale = 1,
   slab_df = 4,
-  temp_schedule = NULL
+  temp_schedule = NULL,
+  HMC_controls_F = NULL,
+  HMC_controls_Z = NULL
 )
 }
 \arguments{
@@ -55,6 +57,10 @@ bfg(
 \item{slab_df}{: degrees of freedom for t-distributed surviving coefficient functions}
 
 \item{temp_schedule}{: vector of length N_iter defining a temperature schedule. Defaults to NULL}
+
+\item{HMC_controls_F}{: list of options for HMC sampler of F hypers}
+
+\item{HMC_conrtols_Z}{: list of options for HMC sampler of Z hypers}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model
