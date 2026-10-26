@@ -17,7 +17,7 @@
 #'@param slab_df : degrees of freedom for t-distributed surviving coefficient functions
 #'@param temp_schedule : vector of length N_iter defining a temperature schedule. Defaults to NULL
 #'@param HMC_controls_F : list of options for HMC sampler of F hypers
-#'@param HMC_conrtols_Z : list of options for HMC sampler of Z hypers
+#'@param HMC_controls_Z : list of options for HMC sampler of Z hypers
 #'
 #'@export
 bfg = function(Y,X,t,p0,data_generated=NULL,
