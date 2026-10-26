@@ -60,7 +60,7 @@ bfg(
 
 \item{HMC_controls_F}{: list of options for HMC sampler of F hypers}
 
-\item{HMC_conrtols_Z}{: list of options for HMC sampler of Z hypers}
+\item{HMC_controls_Z}{: list of options for HMC sampler of Z hypers}
 }
 \description{
 Main function for fitting a function-on-scalar regression using the BFG model
