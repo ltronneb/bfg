@@ -1144,3 +1144,126 @@ HMC_samplerZ_noise = R6Class("Z_hypers",
                                }
                              )
 )
+#' HMC sampler Y hypers, fully marginalised
+#'
+#'@keywords internal
+#'@noRd
+#'@importFrom R6 R6Class
+HMC_samplerY = R6Class("F_hypers",
+                       inherit = HMC,
+                       public = list(
+                         initialize = function(slab_scale = 1.0, slab_df = 4.0, 
+                                               nu_local = 1, nu_global = 1,...){
+                           super$initialize(...)
+                           self$data$slab_scale = slab_scale
+                           self$data$slab_df = slab_df
+                           self$data$nu_local = nu_local
+                           self$data$nu_global = nu_global
+                           # Init h5 file here
+                           # handle this logic here
+                         },
+                         sample = function(){
+                           step = tryCatch(
+                             sample_y_hypers(self$data$X, 
+                                             self$data$dt,
+                                             self$data$Y,
+                                             self$data$tau0_prime[self$iteration],
+                                             self$samples[self$iteration,], 
+                                             self$control$mass_matrix, 
+                                             self$current_epsilon,
+                                             self$current_L,
+                                             self$data$slab_scale,
+                                             self$data$slab_df,
+                                             self$data$nu_local,
+                                             self$data$nu_global),
+                             error = function(e) {
+                               warning(paste0("Divergence! ", e))
+                               # print(e)
+                               NULL
+                             }
+                           )
+                           reject = F
+                           if (is.null(step)){ # If this is null, then auto-reject
+                             reject = T
+                           } else{
+                             if (any(is.infinite(exp(step$theta)))){ # If any of these are too large, reject
+                               reject = T
+                             }
+                             if (any(abs(step$theta)>100)){
+                               reject = T
+                             }
+                           }
+                           if (reject){ # Reject
+                             self$samples[self$iteration+1,] = self$samples[self$iteration,]
+                             self$control$alpha[self$iteration+1] = 0
+                             self$control$reject_counter = self$control$reject_counter + 1
+                           } else{ # Accept
+                             self$samples[self$iteration+1,] = step$theta
+                             self$control$alpha[self$iteration + 1] = step$accept_prob
+                             self$control$reject_counter = 0
+                           }
+                           if (self$control$reject_counter > 5){
+                             # Go back to a point where things worked
+                             self$samples[self$iteration+1,] = self$samples[self$iteration-6,]
+                           }
+                           # Adapt stuff
+                           super$adapt()
+                         }
+                       ),
+                       active = list(
+                         p = function() {
+                           as.integer(self$N_params - 6)/2 # Change this to n-4 after
+                         },
+                         tau = function() {
+                           eig = private$.eigKt()
+                           Qt = eig$vectors
+                           Dt = eig$values
+                           log_tau0 = log(self$data$tau0_prime) + log(self$sigma) - sapply(values,function(x) log(sum(sqrt(pmax(0,Dt)))))
+                           tau = exp(self$samples[,1] + 0.5*self$samples[,2] + log_tau0)
+                           return(tau)
+                         },
+                         lambda = function() {
+                           num = sweep(self$lambda_tilde,1,self$u,FUN="*")
+                           denom_A = sweep(self$lambda_tilde,1,self$tau,FUN="*")^2
+                           denom = sqrt(sweep(denom_A,1,self$u^2,FUN="+"))
+                           num / denom
+                         },
+                         u = function(){
+                           u = exp(log(self$data$slab_scale) + 0.5*self$samples[,2*self$p+4])
+                           return(u)
+                         },
+                         c = function(){
+                           exp(self$samples[,2*self$p+3])
+                         },
+                         lambda_tilde = function(){
+                           exp(self$samples[,3:(self$p+2)]+0.5*self$samples[,(self$p+3):(2*self$p+2)])
+                         },
+                         ell = function(){
+                           exp(self$samples[,2*self$p+5])
+                         },
+                         sigma = function(){
+                           exp(self$samples[,2*self$p+6])
+                         }
+                       ),
+                       private = list(
+                         .Kt = function(){
+                           t1 = as.matrix(self$data$t)
+                           t2 = as.matrix(self$data$t)
+                           n1 = nrow(t1)
+                           n2 = nrow(t2)
+                           K = array(NA,dim=c(n1,n2,self$N.iter))
+                           for (i in 1:n1){
+                             for (j in 1:n2){
+                               K[i,j,] = exp(-0.5*abs(t1[i,]-t2[j,])^2/self$ell^2)
+                             }
+                           }
+                           return(K+1e-6*diag(n1))
+                         }
+                         .eigKt = function(){
+                           eig <- apply(private$.Kt(),3,eigen,symmetric=T,simplify = F)
+                           values = lapply(eig, `[[`, "values")
+                           vectors = lapply(eig, `[[`, "vectors")
+                           return(list("values" = values, "vectors" = vectors))
+                         }
+                       )
+)

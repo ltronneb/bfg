@@ -103,6 +103,28 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// sample_y_hypers
+Rcpp::List sample_y_hypers(Eigen::MatrixXd X, const Eigen::MatrixXd& dt, const Eigen::MatrixXd& Y, double tau0_prime_in, const Eigen::VectorXd& q_val, const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, const double& slab_scale, const double& slab_df, const int& nu_local, const int& nu_global);
+RcppExport SEXP _bfg_sample_y_hypers(SEXP XSEXP, SEXP dtSEXP, SEXP YSEXP, SEXP tau0_prime_inSEXP, SEXP q_valSEXP, SEXP mass_matrix_diagSEXP, SEXP epsilonSEXP, SEXP LSEXP, SEXP slab_scaleSEXP, SEXP slab_dfSEXP, SEXP nu_localSEXP, SEXP nu_globalSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Eigen::MatrixXd >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type dt(dtSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< double >::type tau0_prime_in(tau0_prime_inSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type q_val(q_valSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type mass_matrix_diag(mass_matrix_diagSEXP);
+    Rcpp::traits::input_parameter< double >::type epsilon(epsilonSEXP);
+    Rcpp::traits::input_parameter< int >::type L(LSEXP);
+    Rcpp::traits::input_parameter< const double& >::type slab_scale(slab_scaleSEXP);
+    Rcpp::traits::input_parameter< const double& >::type slab_df(slab_dfSEXP);
+    Rcpp::traits::input_parameter< const int& >::type nu_local(nu_localSEXP);
+    Rcpp::traits::input_parameter< const int& >::type nu_global(nu_globalSEXP);
+    rcpp_result_gen = Rcpp::wrap(sample_y_hypers(X, dt, Y, tau0_prime_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_bfg_clear_cache", (DL_FUNC) &_bfg_clear_cache, 0},
@@ -110,6 +132,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bfg_sample_f_hypers", (DL_FUNC) &_bfg_sample_f_hypers, 16},
     {"_bfg_sample_f_hypers_SKIM", (DL_FUNC) &_bfg_sample_f_hypers_SKIM, 15},
     {"_bfg_sample_z_hypers_and_noise", (DL_FUNC) &_bfg_sample_z_hypers_and_noise, 12},
+    {"_bfg_sample_y_hypers", (DL_FUNC) &_bfg_sample_y_hypers, 12},
     {NULL, NULL, 0}
 };
 

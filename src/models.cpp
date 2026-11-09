@@ -685,6 +685,151 @@ stan::math::var gp_1dloglik_analyticgrad_re_noise(const Eigen::MatrixXd& Y,
   return -0.5*(quad_solve_var + log_det_var);
 }
 
+// And now fully marginalised version of the GP Kronecker likelihood
+stan::math::var gp_1dloglik_analyticgrad_fullymarg(const Eigen::MatrixXd& X,
+                                                   const Eigen::MatrixXd& Y,
+                                                   const Eigen::MatrixXd& dt, // Matrix of distances in t 
+                                                   const Eigen::MatrixXd& Qt,
+                                                   const Eigen::VectorXd& Dt,
+                                                   const Eigen::Matrix<stan::math::var, Eigen::Dynamic, 1>& theta,
+                                                   bool first_step){
+  // Here the log-likelihood is computed, with analytic gradients for the fully marginalised model
+  // Efficiency again via the Kronecker product and eigendecomps
+  // theta contains the entries (\tau,\lambda_1,...,\lambda_p, c, ell, sigma)
+  
+  // Start by defining some constants
+  int n = Y.rows();
+  int m = Y.cols();
+  int p = X.cols();
+  
+  // Pull out values of theta
+  Eigen::VectorXd theta_val = theta.val();
+  // And pull out individual parameters I care about
+  double tau = theta_val(0);
+  Eigen::VectorXd lambda = theta_val.segment(1,p);
+  double c = theta_val(p+1);
+  double ell = theta_val(p+2);
+  double sigma = theta_val(p+3);
+  
+  // Diagonal term in XLXT
+  Eigen::VectorXd diag = (tau*lambda).array().square();
+  
+  // Now we construct kernels
+  // Kx first
+  const auto& cache = get_cache();
+  if (!cache.initialized) Rcpp::stop("Cache not initialised.");
+  Eigen::MatrixXd Kx_val = compute_XLambdaXt_core(cache.X_rcpp,diag);
+  Kx_val.array() += c*c;
+  Kx_val.diagonal().array() += 1e-6; // Nugget
+  // Now Kt
+  // Eigen::MatrixXd Kt_val = (-0.5 * dt.array().square() / (ell * ell)).exp().matrix(); // This is the RBF kernel
+  // Kt_val.diagonal().array() += 1e-6; // Nugget
+  Eigen::MatrixXd QD = Qt.array().colwise() * Dt.array();
+  Eigen::MatrixXd Kt_val(Qt.rows(),Qt.rows());
+  Kt_val.noalias() = QD * Qt.transpose();
+  
+  // Then we decomp these kernels
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver_x(Kx_val);
+  // Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver_t(Kt_val);
+  Eigen::VectorXd Dx = solver_x.eigenvalues();
+  // Eigen::VectorXd Dt = solver_t.eigenvalues();
+  Eigen::MatrixXd Qx = solver_x.eigenvectors();
+  // Eigen::MatrixXd Qt = solver_t.eigenvectors();
+  
+  //////////////////////////////////////////////////////////////////////////////
+  //////   QUADRATIC SOLVE, LOG DETERMINANT AND GRADIENTS   ////////////////////
+  //////////////////////////////////////////////////////////////////////////////
+  // Some helper quantities
+  Eigen::MatrixXd dSigma = Dx * Dt.transpose();
+  dSigma.array() += sigma*sigma;
+  Eigen::MatrixXd Alpha = Qx * ((Qx.transpose() * Y * Qt).array() / dSigma.array()).matrix() * Qt.transpose(); // n x m
+  
+  // Quad solve and log determinant
+  double quad_solve = Y.cwiseProduct(Alpha).sum();
+  double log_det = dSigma.array().log().sum();
+  
+  // Now gradients
+  Eigen::VectorXd quad_solve_grad(p+4);
+  Eigen::VectorXd log_det_grad(p+4);
+  
+  // Now pull some of these matrix products out, can be done once instead of p times
+  Eigen::MatrixXd AK = Alpha * Kt_val; 
+  Eigen::MatrixXd QX = Qx.transpose() * X;
+  Eigen::MatrixXd q1 = Qx.transpose() * Eigen::VectorXd::Ones(n);
+  // Eigen::VectorXd vt = Dt;
+  Eigen::MatrixXd dSinv = dSigma.cwiseInverse();
+  Eigen::VectorXd u = dSinv * Dt;
+  
+  // First wrt to lambdas, while creating the necessary quantity for tau as well
+  double quad_solve_grad_tau = 0.0;
+  double log_det_grad_tau = 0.0;
+
+  for (int j = 0; j < p; j++){
+    // Helper quantities
+    Eigen::VectorXd xj = X.col(j);
+    double scale = 2.0 * (tau * tau) * lambda(j);
+    double scale_tau = 2.0 * tau * (lambda(j) * lambda(j));
+    
+    Eigen::VectorXd qxj = QX.col(j);
+    Eigen::VectorXd vx = scale * qxj.cwiseProduct(qxj);
+    double qj = (Alpha.transpose() * xj).dot(AK.transpose() * xj);
+    // Eigen::VectorXd vx = (Qx.transpose() * (scale * (xj * xj.transpose())) * Qx).diagonal();
+    // Eigen::VectorXd vx_tau = (Qx.transpose() * (scale_tau * (xj * xj.transpose())) * Qx).diagonal();
+    // grads
+    // quad_solve_grad(1+j) = Alpha.cwiseProduct(scale * (xj * xj.transpose()) * Alpha * Kt_val).sum();
+    quad_solve_grad(1+j) = -scale * qj;
+    // quad_solve_grad_tau += Alpha.cwiseProduct(scale_tau * (xj * xj.transpose()) * Alpha * Kt_val).sum();
+    quad_solve_grad_tau -= scale_tau * qj;
+    // log_det_grad(1+j) = ((1.0/dSigma.array()) * (vx * vt.transpose()).array()).sum();
+    // log_det_grad_tau += ((1.0/dSigma.array()) * (vx_tau * vt.transpose()).array()).sum();
+    log_det_grad(1+j) = vx.dot(u);
+    log_det_grad_tau += scale_tau * qxj.cwiseProduct(qxj).dot(u);
+  }
+  
+  // wrt tau
+  {
+    quad_solve_grad(0) = quad_solve_grad_tau;
+    log_det_grad(0) = log_det_grad_tau;
+  }
+  
+  // wrt c
+  {
+    Eigen::VectorXd ones = Eigen::VectorXd::Ones(n);
+    double scale = 2.0 * c;
+    // Eigen::VectorXd vx = (Qx.transpose() * (scale * (ones * ones.tranpose())) * Qx).diagonal();
+    Eigen::VectorXd vx = scale * q1.cwiseProduct(q1);
+    // quad_solve_grad(p+1) = Alpha.cwiseProduct(scale * (ones * ones.transpose()) * Alpha * Kt_val).sum();
+    quad_solve_grad(p+1) = -scale * (Alpha.transpose() * ones).dot(AK.transpose() * ones);
+    // log_det_grad(p+1) = ((1.0/dSigma.array()) * (vx * vt.transpose()).array()).sum();
+    log_det_grad(p+1) = vx.dot(u);
+  }
+  
+  // wrt ell
+  {
+    Eigen::MatrixXd dKtdell = Kt_val.array() * dt.array().square()/(ell * ell * ell);
+    // Eigen::VectorXd vx = (Qx.transpose() * Kx_val * Qx).diagonal();
+    Eigen::VectorXd vx = Dx;
+    // Eigen::VectorXd vt = (Qt.transpose() * dKtdell * Qt).diagonal();
+    Eigen::VectorXd vt_ell = (Qt.transpose() * dKtdell * Qt).diagonal();
+    quad_solve_grad(p+2) = -Alpha.cwiseProduct(Kx_val * Alpha * dKtdell).sum();
+    // log_det_grad(p+2) = ((1.0/dSigma.array()) * (vx * vt.transpose()).array()).sum();
+    log_det_grad(p+2) = vx.dot(dSinv * vt_ell);
+  }
+  
+  // wrt sigma
+  {
+    double scale = 2.0 * sigma;
+    quad_solve_grad(p+3) = -scale * Alpha.squaredNorm();
+    log_det_grad(p+3) = scale * dSinv.sum();
+  }
+  
+  // Now assemble stan::vars
+  stan::math::var quad_solve_var = stan::math::precomputed_gradients(quad_solve,theta,quad_solve_grad);
+  stan::math::var log_det_var = stan::math::precomputed_gradients(log_det,theta,log_det_grad);
+  
+  // Finally return
+  return -0.5 * (quad_solve_var + log_det_var);
+}
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1046,3 +1191,180 @@ Rcpp::List sample_z_hypers_and_noise(const Eigen::MatrixXd& Qt,
   
   return HMC_kernel(U,q_val,mass_matrix_diag,epsilon,L);
 }
+
+
+/// Standard model, no interaction, 1d
+template <typename T>
+T gp_kron_logpost_1d_horseshoe_full(// Data
+    const Eigen::MatrixXd& X, // Data for linear kernel
+    const Eigen::MatrixXd& dt, 
+    const Eigen::MatrixXd& Y, // The data
+    // Hyperparameters
+    const double& slab_scale,
+    const double& slab_df,
+    const int& nu_local,
+    const int& nu_global,
+    const T& tau0_prime,
+    // Parameters
+    const Eigen::Matrix<T, Eigen::Dynamic, 1>& q, // parameters to sample
+    const bool first_step
+){
+  using stan::math::exp;
+  using stan::math::sqrt;
+  using stan::math::square;
+  using stan::math::elt_divide;
+  using stan::math::elt_multiply;
+  using stan::math::log_sum_exp;
+  using stan::math::log1p_exp;
+  using stan::math::eigendecompose_sym;
+  using stan::math::add_diag;
+  using stan::math::add;
+  using stan::math::sum;
+  using stan::math::inv_gamma_lpdf;
+  using stan::math::std_normal_lpdf;
+  using stan::math::student_t_lpdf;
+  using stan::math::pow;
+  using stan::math::inv_logit;
+  using stan::math::log1m;
+  
+  
+  // Defining some hyper-parameters parameters that will be used
+  double n = static_cast<double>(X.rows());
+  double m = static_cast<double>(Y.cols());
+  int p = X.cols();
+  
+  // Pull out parameters
+  T log_tau_aux_1 = q(0);
+  T log_tau_aux_2 = q(1);
+
+  Eigen::Matrix<T, Eigen::Dynamic, 1> log_lambda_tilde_aux_1 = q.segment(2, p);
+  Eigen::Matrix<T, Eigen::Dynamic, 1> log_lambda_tilde_aux_2 = q.segment(2+p,p);
+  T log_c = q(2 + 2*p);
+  T log_u_aux = q(3 + 2*p);
+  T log_ell = q(4 + 2*p);
+  T log_sigma = q(5 + 2*p);
+  
+  // Transform parameters into proper scale and make sure bounds hold
+  T tau_aux_1 = exp(log_tau_aux_1);
+  T tau_aux_2 = exp(log_tau_aux_2);
+  Eigen::Matrix<T, Eigen::Dynamic, 1> lambda_tilde_aux_1 = exp(log_lambda_tilde_aux_1);
+  Eigen::Matrix<T, Eigen::Dynamic, 1> lambda_tilde_aux_2 = exp(log_lambda_tilde_aux_2);
+  T c = exp(log_c);
+  T u_aux = exp(log_u_aux);
+  T ell = exp(log_ell);
+  T sigma = exp(log_sigma);
+  
+
+  // I need eigendecomps here, because the prior on log_tau needs to scale
+  // with the eigenvalues of Kt, but then how do I deal with the two places
+  // the derivatives need to go? In principle, this should be fine, but I should change
+  // the args for the likelihood to pass Dt and Qt as doubles
+  // interestingly as well, the gradient for the eigenvalues here has a nice form!
+  // EIGENDECOMP HERE!
+  double ell_val = ell.val();
+  Eigen::Matrix<T, Eigen::Dynamic, 1> ell_vec(1);
+  ell_vec(0) = ell;
+  
+  Eigen::MatrixXd Kt_val = (-0.5 * dt.array().square() / (ell_val * ell_val)).exp().matrix(); // This is the RBF kernel
+  Kt_val.diagonal().array() += 1e-6; // Nugget
+  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver_t(Kt_val);
+  Eigen::VectorXd Dt = solver_t.eigenvalues();
+  Eigen::MatrixXd Qt = solver_t.eigenvectors();
+  Eigen::MatrixXd dKtdell = Kt_val.array() * dt.array().square()/(ell_val * ell_val * ell_val);
+  
+  // Then define the quantity I care about and attach the gradient
+  // I define S as \sum \sqrt{d_j}, where d_j are the eigenvalues of Kt
+  // S has a simple derivative wrt ell
+  Eigen::VectorXd ddjdell = (Qt.transpose() * dKtdell * Qt).diagonal();
+  double logS_val = log_sum_exp(0.5 * Dt.array().log());
+  double dSdell = exp(log_sum_exp(log(0.5) - 0.5 * Dt.array().log() + ddjdell.array().log()));
+  double logS_grad = dSdell / exp(logS_val);
+  Eigen::VectorXd logS_grad_vec(1);
+  logS_grad_vec(0) = logS_grad;
+  T logS = stan::math::precomputed_gradients(logS_val,ell_vec,logS_grad_vec);
+  // T logS = stan::math::var(new stan::math::precomputed_gradients_vari(logS_val, ell.vi(), logS_grad));
+  
+  
+  T log_tau0 = log(tau0_prime) + log_sigma - logS;
+  // Constructing higher order parameters to be used
+  auto log_u = log(slab_scale) + 0.5*log_u_aux;
+  auto log_tau = log_tau_aux_1 + 0.5*log_tau_aux_2 + log_tau0;
+  
+  auto log_lambda_tilde = add(log_lambda_tilde_aux_1, 0.5*log_lambda_tilde_aux_2);
+  
+  Eigen::Matrix<T, Eigen::Dynamic, 1> log_lambda_num = add(log_u,log_lambda_tilde);
+  Eigen::Matrix<T, Eigen::Dynamic, 1> log_lambda_den = -0.5*log_sum_exp(2.0*log_u,add(2.0*log_tau,2.0*log_lambda_tilde));
+  Eigen::Matrix<T, Eigen::Dynamic, 1> log_lambda = add(log_lambda_num,log_lambda_den);
+  Eigen::Matrix<T, Eigen::Dynamic, 1> lambda = exp(log_lambda);
+  auto tau = exp(log_tau);
+  
+  // Stack all my parameters I care about into a vector
+  Eigen::Matrix<T, Eigen::Dynamic, 1> theta(p + 4);
+  theta(0) = tau;
+  for (int j = 0; j < p; ++j)
+    theta(j + 1) = lambda(j);
+  theta(p + 1) = c;
+  theta(p + 2) = ell;
+  theta(p + 3) = sigma;
+  
+  
+  // Get the log-likelihood
+  auto loglik = gp_1dloglik_analyticgrad_fullymarg(X,Y,dt,Qt,Dt,theta,first_step);
+  
+  // Add priors for parameters
+  // Note Jacobian corrections
+  auto log_prior_log_c = std_normal_lpdf(c) + log_c;
+  auto log_prior_log_u_aux = inv_gamma_lpdf(u_aux, 0.5*slab_df,0.5*slab_df) + log_u_aux;
+  auto log_prior_log_tau_aux_1 = std_normal_lpdf(tau_aux_1) + log_tau_aux_1;
+  auto log_prior_log_tau_aux_2 = inv_gamma_lpdf(tau_aux_2, 0.5*nu_global, 0.5*nu_global) + log_tau_aux_2;
+  auto log_prior_log_lambda_tilde_aux_1 = std_normal_lpdf(lambda_tilde_aux_1) + sum(log_lambda_tilde_aux_1);
+  auto log_prior_log_lambda_tilde_aux_2 = inv_gamma_lpdf(lambda_tilde_aux_2, 0.5*nu_local, 0.5*nu_local) + sum(log_lambda_tilde_aux_2);
+  auto log_prior_log_ell = stan::math::lognormal_lpdf(ell, 0, 1) + log_ell;
+  auto log_prior_log_sigma = stan::math::normal_lpdf(sigma, 0, 1) + log_sigma;
+  
+  // Log posterior returned
+  auto logpost = loglik +
+    log_prior_log_c +
+    log_prior_log_u_aux +
+    log_prior_log_tau_aux_1 +
+    log_prior_log_tau_aux_2 +
+    log_prior_log_lambda_tilde_aux_1 +
+    log_prior_log_lambda_tilde_aux_2 +
+    log_prior_log_ell +
+    log_prior_log_sigma;
+  
+  return logpost;
+}
+
+// Function to sample hyperparameters of Y (fully marginalised)
+// [[Rcpp::export]]
+Rcpp::List sample_y_hypers(Eigen::MatrixXd X,  // Data
+                           const Eigen::MatrixXd & dt,
+                           const Eigen::MatrixXd& Y,  // Data
+                           double tau0_prime_in,  // Hypers
+                           const Eigen::VectorXd& q_val, // Parameters
+                           const Eigen::VectorXd& mass_matrix_diag, double epsilon, int L, // Hypers
+                           const double& slab_scale = 5.0, // Hypers w/ default values
+                           const double& slab_df = 4.0, // Hypers w/ default values
+                           const int& nu_local = 1, // Hypers w/ default values
+                           const int& nu_global = 1 // Hypers w/ default values
+){
+  using stan::math::var;
+  using Eigen::VectorXd;
+  using Eigen::Matrix;
+  // Promote some stuff
+  var tau0_prime = tau0_prime_in;
+  // Set up the potential function lambda
+  auto U = [&](const Eigen::Matrix<var, -1, 1> q_val, const bool first_step){
+    return -gp_kron_logpost_1d_horseshoe_full(X, dt, Y,  //Data
+                                         slab_scale, slab_df, nu_local, // Hypers
+                                         nu_global, tau0_prime, // Hypers
+                                         q_val, // Parameters
+                                         first_step
+    );
+  };
+  
+  return HMC_kernel(U, q_val, mass_matrix_diag, epsilon, L);
+}
+
+

@@ -21,3 +21,7 @@ sample_z_hypers_and_noise <- function(Qt, Dt, Y, q_val, temperature, mass_matrix
     .Call(`_bfg_sample_z_hypers_and_noise`, Qt, Dt, Y, q_val, temperature, mass_matrix_diag, epsilon, L, eta, beta_gamma_a, beta_gamma_b, dir_a)
 }
 
+sample_y_hypers <- function(X, dt, Y, tau0_prime_in, q_val, mass_matrix_diag, epsilon, L, slab_scale = 5.0, slab_df = 4.0, nu_local = 1L, nu_global = 1L) {
+    .Call(`_bfg_sample_y_hypers`, X, dt, Y, tau0_prime_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global)
+}
+
