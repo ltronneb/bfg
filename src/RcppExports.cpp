@@ -125,6 +125,26 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// check_grad_y_hypers
+Rcpp::List check_grad_y_hypers(Rcpp::NumericMatrix X_r, const Eigen::MatrixXd& dt, const Eigen::MatrixXd& Y, double tau0_prime_in, const Eigen::VectorXd& q_val, double slab_scale, double slab_df, int nu_local, int nu_global, double rel_step);
+RcppExport SEXP _bfg_check_grad_y_hypers(SEXP X_rSEXP, SEXP dtSEXP, SEXP YSEXP, SEXP tau0_prime_inSEXP, SEXP q_valSEXP, SEXP slab_scaleSEXP, SEXP slab_dfSEXP, SEXP nu_localSEXP, SEXP nu_globalSEXP, SEXP rel_stepSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type X_r(X_rSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type dt(dtSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< double >::type tau0_prime_in(tau0_prime_inSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type q_val(q_valSEXP);
+    Rcpp::traits::input_parameter< double >::type slab_scale(slab_scaleSEXP);
+    Rcpp::traits::input_parameter< double >::type slab_df(slab_dfSEXP);
+    Rcpp::traits::input_parameter< int >::type nu_local(nu_localSEXP);
+    Rcpp::traits::input_parameter< int >::type nu_global(nu_globalSEXP);
+    Rcpp::traits::input_parameter< double >::type rel_step(rel_stepSEXP);
+    rcpp_result_gen = Rcpp::wrap(check_grad_y_hypers(X_r, dt, Y, tau0_prime_in, q_val, slab_scale, slab_df, nu_local, nu_global, rel_step));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_bfg_clear_cache", (DL_FUNC) &_bfg_clear_cache, 0},
@@ -133,6 +153,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_bfg_sample_f_hypers_SKIM", (DL_FUNC) &_bfg_sample_f_hypers_SKIM, 15},
     {"_bfg_sample_z_hypers_and_noise", (DL_FUNC) &_bfg_sample_z_hypers_and_noise, 12},
     {"_bfg_sample_y_hypers", (DL_FUNC) &_bfg_sample_y_hypers, 12},
+    {"_bfg_check_grad_y_hypers", (DL_FUNC) &_bfg_check_grad_y_hypers, 10},
     {NULL, NULL, 0}
 };
 

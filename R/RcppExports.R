@@ -25,3 +25,7 @@ sample_y_hypers <- function(X, dt, Y, tau0_prime_in, q_val, mass_matrix_diag, ep
     .Call(`_bfg_sample_y_hypers`, X, dt, Y, tau0_prime_in, q_val, mass_matrix_diag, epsilon, L, slab_scale, slab_df, nu_local, nu_global)
 }
 
+check_grad_y_hypers <- function(X_r, dt, Y, tau0_prime_in, q_val, slab_scale = 1.0, slab_df = 4.0, nu_local = 1L, nu_global = 1L, rel_step = 1e-5) {
+    .Call(`_bfg_check_grad_y_hypers`, X_r, dt, Y, tau0_prime_in, q_val, slab_scale, slab_df, nu_local, nu_global, rel_step)
+}
+

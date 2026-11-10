@@ -10,6 +10,7 @@ bfg(
   t,
   p0,
   data_generated = NULL,
+  random_effects = T,
   interactions = F,
   thinning = 1,
   N_iter = 2000,
@@ -35,6 +36,8 @@ bfg(
 \item{p0}{: expected number of non-zero coefficients}
 
 \item{data_generated}{: list returned by gen_data, for plotting simulations}
+
+\item{random_effects}{: bool, estimate model with random effects (default T)}
 
 \item{interactions}{: bool, estimate model with interactions? (default F)}
 

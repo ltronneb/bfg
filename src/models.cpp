@@ -724,9 +724,10 @@ stan::math::var gp_1dloglik_analyticgrad_fullymarg(const Eigen::MatrixXd& X,
   // Now Kt
   // Eigen::MatrixXd Kt_val = (-0.5 * dt.array().square() / (ell * ell)).exp().matrix(); // This is the RBF kernel
   // Kt_val.diagonal().array() += 1e-6; // Nugget
-  Eigen::MatrixXd QD = Qt.array().colwise() * Dt.array();
-  Eigen::MatrixXd Kt_val(Qt.rows(),Qt.rows());
-  Kt_val.noalias() = QD * Qt.transpose();
+  // Eigen::MatrixXd QD = Qt.array().colwise() * Dt.array();
+  // Eigen::MatrixXd Kt_val(Qt.rows(),Qt.rows());
+  // Kt_val.noalias() = QD * Qt.transpose();
+  Eigen::MatrixXd Kt_val = Qt * Dt.asDiagonal() * Qt.transpose();
   
   // Then we decomp these kernels
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver_x(Kx_val);
@@ -1277,7 +1278,8 @@ T gp_kron_logpost_1d_horseshoe_full(// Data
   // S has a simple derivative wrt ell
   Eigen::VectorXd ddjdell = (Qt.transpose() * dKtdell * Qt).diagonal();
   double logS_val = log_sum_exp(0.5 * Dt.array().log());
-  double dSdell = exp(log_sum_exp(log(0.5) - 0.5 * Dt.array().log() + ddjdell.array().log()));
+  // double dSdell = exp(log_sum_exp(log(0.5) - 0.5 * Dt.array().log() + ddjdell.array().log())); // grads can be negative
+  double dSdell = (0.5 * ddjdell.array() / Dt.array().sqrt()).sum();
   double logS_grad = dSdell / exp(logS_val);
   Eigen::VectorXd logS_grad_vec(1);
   logS_grad_vec(0) = logS_grad;
@@ -1339,7 +1341,7 @@ T gp_kron_logpost_1d_horseshoe_full(// Data
 // Function to sample hyperparameters of Y (fully marginalised)
 // [[Rcpp::export]]
 Rcpp::List sample_y_hypers(Eigen::MatrixXd X,  // Data
-                           const Eigen::MatrixXd & dt,
+                           const Eigen::MatrixXd& dt,
                            const Eigen::MatrixXd& Y,  // Data
                            double tau0_prime_in,  // Hypers
                            const Eigen::VectorXd& q_val, // Parameters
@@ -1367,4 +1369,248 @@ Rcpp::List sample_y_hypers(Eigen::MatrixXd X,  // Data
   return HMC_kernel(U, q_val, mass_matrix_diag, epsilon, L);
 }
 
+// Gradient checking
+
+// Add these includes at the top of the existing C++ file if not
+// already included.
+#include <cmath>
+#include <algorithm>
+
+// [[Rcpp::export]]
+Rcpp::List check_grad_y_hypers(
+    Rcpp::NumericMatrix X_r,
+    const Eigen::MatrixXd& dt,
+    const Eigen::MatrixXd& Y,
+    double tau0_prime_in,
+    const Eigen::VectorXd& q_val,
+    double slab_scale = 1.0,
+    double slab_df = 4.0,
+    int nu_local = 1,
+    int nu_global = 1,
+    double rel_step = 1e-5
+) {
+  using stan::math::var;
+  using Eigen::VectorXd;
+  using Eigen::Matrix;
+  
+  // ------------------------------------------------------------
+  // 1. Input checks
+  // ------------------------------------------------------------
+  
+  Eigen::MatrixXd X = Rcpp::as<Eigen::MatrixXd>(X_r);
+  
+  const int n = X.rows();
+  const int p = X.cols();
+  const int m = Y.cols();
+  
+  if (n != Y.rows()) {
+    Rcpp::stop("X and Y must have the same number of rows.");
+  }
+  
+  if (dt.rows() != m || dt.cols() != m) {
+    Rcpp::stop("dt must be an m x m distance matrix.");
+  }
+  
+  // q ordering:
+  // 1              log_tau_aux_1
+  // 2              log_tau_aux_2
+  // 3:(p+2)        log_lambda_tilde_aux_1
+  // (p+3):(2p+2)   log_lambda_tilde_aux_2
+  // 2p+3           log_c
+  // 2p+4           log_u_aux
+  // 2p+5           log_ell
+  // 2p+6           log_sigma
+  
+  if (q_val.size() != 2 * p + 6) {
+    Rcpp::stop("q_val must have length 2*p + 6.");
+  }
+  
+  if (!q_val.allFinite() || !X.allFinite() ||
+      !Y.allFinite() || !dt.allFinite()) {
+      Rcpp::stop("Inputs must contain only finite values.");
+  }
+  
+  if (!(tau0_prime_in > 0.0) ||
+      !(slab_scale > 0.0) ||
+      !(slab_df > 0.0) ||
+      nu_local <= 0 ||
+      nu_global <= 0 ||
+      !(rel_step > 0.0)) {
+      Rcpp::stop("Hyperparameters and rel_step must be positive.");
+  }
+  
+  // Ensure that the existing likelihood function uses this X.
+  // Its Kx construction accesses the global cache.
+  prepare_cache(X_r);
+  
+  // ------------------------------------------------------------
+  // 2. Helper: evaluate the full log posterior at a point q
+  // ------------------------------------------------------------
+  
+  auto evaluate_logpost = [&](const VectorXd& q_eval) -> double {
+    
+    StanNestedScope scope;
+    
+    Matrix<var, Eigen::Dynamic, 1> q_var =
+      q_eval.cast<var>();
+    
+    var tau0_prime = tau0_prime_in;
+    
+    var lp = gp_kron_logpost_1d_horseshoe_full(
+      X,
+      dt,
+      Y,
+      slab_scale,
+      slab_df,
+      nu_local,
+      nu_global,
+      tau0_prime,
+      q_var,
+      false
+    );
+    
+    return lp.val();
+  };
+  
+  // ------------------------------------------------------------
+  // 3. Compute the analytic gradient through Stan autodiff
+  // ------------------------------------------------------------
+  
+  VectorXd grad_analytic(q_val.size());
+  double log_posterior;
+  
+  {
+    StanNestedScope scope;
+    
+    Matrix<var, Eigen::Dynamic, 1> q_var =
+      q_val.cast<var>();
+    
+    var tau0_prime = tau0_prime_in;
+    
+    var lp = gp_kron_logpost_1d_horseshoe_full(
+      X,
+      dt,
+      Y,
+      slab_scale,
+      slab_df,
+      nu_local,
+      nu_global,
+      tau0_prime,
+      q_var,
+      false
+    );
+    
+    // Same gradient extraction pattern used in HMC_kernel().
+    std::vector<var> q_vars(
+        q_var.data(),
+        q_var.data() + q_var.size()
+    );
+    
+    std::vector<double> grad_vec;
+    
+    lp.grad(q_vars, grad_vec);
+    
+    grad_analytic =
+      Eigen::Map<VectorXd>(
+        grad_vec.data(),
+        grad_vec.size()
+      );
+    
+    log_posterior = lp.val();
+  }
+  
+  // ------------------------------------------------------------
+  // 4. Central finite-difference gradient
+  // ------------------------------------------------------------
+  
+  const int d = q_val.size();
+  
+  VectorXd grad_fd(d);
+  VectorXd fd_steps(d);
+  
+  for (int j = 0; j < d; ++j) {
+    
+    // Coordinate-specific step size.
+    double h = rel_step *
+      std::max(1.0, std::abs(q_val(j)));
+    
+    fd_steps(j) = h;
+    
+    VectorXd q_plus = q_val;
+    VectorXd q_minus = q_val;
+    
+    q_plus(j) += h;
+    q_minus(j) -= h;
+    
+    double lp_plus = evaluate_logpost(q_plus);
+    double lp_minus = evaluate_logpost(q_minus);
+    
+    grad_fd(j) =
+      (lp_plus - lp_minus) / (2.0 * h);
+  }
+  
+  // ------------------------------------------------------------
+  // 5. Compare gradients
+  // ------------------------------------------------------------
+  
+  VectorXd abs_error(d);
+  VectorXd scaled_error(d);
+  
+  for (int j = 0; j < d; ++j) {
+    
+    abs_error(j) =
+      std::abs(grad_analytic(j) - grad_fd(j));
+    
+    double denominator = std::max(
+      1.0,
+      std::max(
+        std::abs(grad_analytic(j)),
+        std::abs(grad_fd(j))
+      )
+    );
+    
+    scaled_error(j) = abs_error(j) / denominator;
+  }
+  
+  // ------------------------------------------------------------
+  // 6. Parameter names
+  // ------------------------------------------------------------
+  
+  Rcpp::CharacterVector parameter_names(d);
+  
+  parameter_names[0] = "log_tau_aux_1";
+  parameter_names[1] = "log_tau_aux_2";
+  
+  for (int j = 0; j < p; ++j) {
+    parameter_names[2 + j] =
+      "log_lambda_tilde_aux_1[" +
+      std::to_string(j + 1) + "]";
+    
+    parameter_names[2 + p + j] =
+      "log_lambda_tilde_aux_2[" +
+      std::to_string(j + 1) + "]";
+  }
+  
+  parameter_names[2 * p + 2] = "log_c";
+  parameter_names[2 * p + 3] = "log_u_aux";
+  parameter_names[2 * p + 4] = "log_ell";
+  parameter_names[2 * p + 5] = "log_sigma";
+  
+  Rcpp::DataFrame comparison = Rcpp::DataFrame::create(
+    Rcpp::_["parameter"] = parameter_names,
+    Rcpp::_["analytic"] = grad_analytic,
+    Rcpp::_["finite_difference"] = grad_fd,
+    Rcpp::_["absolute_error"] = abs_error,
+    Rcpp::_["scaled_error"] = scaled_error,
+    Rcpp::_["step_size"] = fd_steps
+  );
+  
+  return Rcpp::List::create(
+    Rcpp::_["log_posterior"] = log_posterior,
+    Rcpp::_["gradient"] = comparison,
+    Rcpp::_["max_absolute_error"] = abs_error.maxCoeff(),
+    Rcpp::_["max_scaled_error"] = scaled_error.maxCoeff(),
+    Rcpp::_["rel_step"] = rel_step
+  );
+}
 

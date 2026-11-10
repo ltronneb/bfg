@@ -1149,7 +1149,7 @@ HMC_samplerZ_noise = R6Class("Z_hypers",
 #'@keywords internal
 #'@noRd
 #'@importFrom R6 R6Class
-HMC_samplerY = R6Class("F_hypers",
+HMC_samplerY = R6Class("Y_hypers",
                        inherit = HMC,
                        public = list(
                          initialize = function(slab_scale = 1.0, slab_df = 4.0, 
@@ -1163,11 +1163,12 @@ HMC_samplerY = R6Class("F_hypers",
                            # handle this logic here
                          },
                          sample = function(){
+                           # print(self$data$dt)
                            step = tryCatch(
                              sample_y_hypers(self$data$X, 
                                              self$data$dt,
                                              self$data$Y,
-                                             self$data$tau0_prime[self$iteration],
+                                             self$data$tau0_prime,
                                              self$samples[self$iteration,], 
                                              self$control$mass_matrix, 
                                              self$current_epsilon,
@@ -1218,7 +1219,9 @@ HMC_samplerY = R6Class("F_hypers",
                            eig = private$.eigKt()
                            Qt = eig$vectors
                            Dt = eig$values
-                           log_tau0 = log(self$data$tau0_prime) + log(self$sigma) - sapply(values,function(x) log(sum(sqrt(pmax(0,Dt)))))
+                           # print(Dt)
+                           # print(log(self$data$tau0_prime))
+                           log_tau0 = log(self$data$tau0_prime) + log(self$sigma) - sapply(Dt,function(x) log(sum(sqrt(pmax(0,x)))))
                            tau = exp(self$samples[,1] + 0.5*self$samples[,2] + log_tau0)
                            return(tau)
                          },
@@ -1247,20 +1250,27 @@ HMC_samplerY = R6Class("F_hypers",
                        ),
                        private = list(
                          .Kt = function(){
+                           # print(self$ell)
                            t1 = as.matrix(self$data$t)
                            t2 = as.matrix(self$data$t)
                            n1 = nrow(t1)
                            n2 = nrow(t2)
-                           K = array(NA,dim=c(n1,n2,self$N.iter))
+                           K = array(NA,dim=c(n1,n2,self$N_iter))
                            for (i in 1:n1){
                              for (j in 1:n2){
                                K[i,j,] = exp(-0.5*abs(t1[i,]-t2[j,])^2/self$ell^2)
+                               if (i == j){
+                                 K[i,j,] = K[i,j,] + 1e-6
+                               }
                              }
                            }
-                           return(K+1e-6*diag(n1))
-                         }
+                           return(K)
+                         },
                          .eigKt = function(){
-                           eig <- apply(private$.Kt(),3,eigen,symmetric=T,simplify = F)
+                           eig <- apply(private$.Kt(),3, function(K) {
+                             if (is.null(K) || all(is.na(K))) return(NULL)
+                             eigen(K,symmetric=T)
+                           }, simplify = F)
                            values = lapply(eig, `[[`, "values")
                            vectors = lapply(eig, `[[`, "vectors")
                            return(list("values" = values, "vectors" = vectors))
