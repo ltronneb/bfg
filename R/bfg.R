@@ -223,7 +223,7 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
   samplers = samplers[lengths(samplers)!=0]
   L = list(samplers = samplers,
            data = list(Y=Y,X=X,t=t,tau0_prime=tau0_prime,
-                       data_generated=data_generated,
+                       data_generated=data_generated, random_effects = random_effects,
                        interactions=interactions,thinning=thinning,
                        N_iter=N_iter, plotting=plotting,warmup = floor(N_iter/2)),
            beta.hat = beta.hat,
@@ -357,8 +357,14 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
       if (compute_betas){
         eigKt = F_sampler$eigKt
         fi = F_sampler$samples[i,,]
-        lambda = F_hypers$lambda[i,]
-        tau = F_hypers$tau[i]
+        if (random_effects){
+          lambda = F_hypers$lambda[i,]
+          tau = F_hypers$tau[i]
+        } else{
+          lambda = Y_hypers$lambda[i,]
+          tau = Y_hypers$tau[i]
+        }
+        
         Lt = t(t(eigKt$vectors)*sqrt(eigKt$values))
         # Sample from prior
         Z = matrix(rnorm(p*m),ncol=m,nrow=p)
@@ -380,45 +386,45 @@ bfg = function(Y,X,t,p0,data_generated=NULL,
     
     
     # PLOTTING
-    if (plotting & !is.null(data_generated)){
-      idx = 11
-      lag = 100
-      par(mfrow=c(2,2))
-      # Fig 1: Data fit
-      plot(Z_hypers$logit_u)
-      # plot(data_generated$F.true[idx,],col="blue",lty=2,type="l",main=paste0("F + Z"," iter=",i))
-      # points(data_generated$Y[idx,])
-      # lines(F_sampler$samples[i,idx,]+Z_sampler$samples[i,idx,],col="red")
-      # if (i > lag){
-      #   lines(apply(F_sampler$samples[(i-lag):i,idx,] + Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
-      # }
-      # Fig 2: Fixed effects
-      plot(log(F_hypers$tau))
-      # plot((data_generated$F.true - data_generated$Z)[idx,],type="l",col="blue",lty=2, main=paste0("F"," iter=",i))
-      # points((data_generated$Y - data_generated$Z)[idx,])
-      # points((data_generated$Y - Z_sampler$samples[i,,])[idx,],col="green")
-      # lines(F_sampler$samples[i,idx,],col="red")
-      # lines(F_sampler$samples[i,idx,] + 2*(Z_hypers$sigma[i]),col="red",lty=2)
-      # lines(F_sampler$samples[i,idx,] - 2*(Z_hypers$sigma[i]),col="red",lty=2)
-      # if (i > lag){
-      #   lines(apply(F_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
-      # }
-      # Fig 3: Random effects
-      plot(data_generated$Z[idx,],type="l",col="blue",lty=2,main=paste0("Z"," iter=",i))
-      points((data_generated$Y - ((data_generated$F.true - data_generated$Z)))[idx,])
-      points((data_generated$Y - F_sampler$samples[i,,])[idx,],col="green")
-      lines(Z_sampler$samples[i,idx,],col="red")
-      lines(Z_sampler$samples[i,idx,] + 2*(Z_hypers$sigma[i]),col="red",lty=2)
-      lines(Z_sampler$samples[i,idx,] - 2*(Z_hypers$sigma[i]),col="red",lty=2)
-      if (i > lag){
-        lines(apply(Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
-      }
-      # Fig 4: Horseshoe scales
-      plot(F_hypers$lambda[i,]*F_hypers$tau[i])
-      abline(v=true)
-      Sys.sleep(0.1)
-      par(mfrow=c(1,1))
-    }
+    # if (plotting & !is.null(data_generated)){
+    #   idx = 11
+    #   lag = 100
+    #   par(mfrow=c(2,2))
+    #   # Fig 1: Data fit
+    #   plot(Z_hypers$logit_u)
+    #   # plot(data_generated$F.true[idx,],col="blue",lty=2,type="l",main=paste0("F + Z"," iter=",i))
+    #   # points(data_generated$Y[idx,])
+    #   # lines(F_sampler$samples[i,idx,]+Z_sampler$samples[i,idx,],col="red")
+    #   # if (i > lag){
+    #   #   lines(apply(F_sampler$samples[(i-lag):i,idx,] + Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
+    #   # }
+    #   # Fig 2: Fixed effects
+    #   plot(log(F_hypers$tau))
+    #   # plot((data_generated$F.true - data_generated$Z)[idx,],type="l",col="blue",lty=2, main=paste0("F"," iter=",i))
+    #   # points((data_generated$Y - data_generated$Z)[idx,])
+    #   # points((data_generated$Y - Z_sampler$samples[i,,])[idx,],col="green")
+    #   # lines(F_sampler$samples[i,idx,],col="red")
+    #   # lines(F_sampler$samples[i,idx,] + 2*(Z_hypers$sigma[i]),col="red",lty=2)
+    #   # lines(F_sampler$samples[i,idx,] - 2*(Z_hypers$sigma[i]),col="red",lty=2)
+    #   # if (i > lag){
+    #   #   lines(apply(F_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
+    #   # }
+    #   # Fig 3: Random effects
+    #   plot(data_generated$Z[idx,],type="l",col="blue",lty=2,main=paste0("Z"," iter=",i))
+    #   points((data_generated$Y - ((data_generated$F.true - data_generated$Z)))[idx,])
+    #   points((data_generated$Y - F_sampler$samples[i,,])[idx,],col="green")
+    #   lines(Z_sampler$samples[i,idx,],col="red")
+    #   lines(Z_sampler$samples[i,idx,] + 2*(Z_hypers$sigma[i]),col="red",lty=2)
+    #   lines(Z_sampler$samples[i,idx,] - 2*(Z_hypers$sigma[i]),col="red",lty=2)
+    #   if (i > lag){
+    #     lines(apply(Z_sampler$samples[(i-lag):i,idx,],2,mean),col="black",lty=2)
+    #   }
+    #   # Fig 4: Horseshoe scales
+    #   plot(F_hypers$lambda[i,]*F_hypers$tau[i])
+    #   abline(v=true)
+    #   Sys.sleep(0.1)
+    #   par(mfrow=c(1,1))
+    # }
     #### Manage time expectations
     if (i %% 100 == 0){
       newtime = Sys.time()

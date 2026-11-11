@@ -27,7 +27,13 @@ get_beta = function(fit, k = NULL, N_samples = NULL){
     N_samples = N_iter
   }
   F_sampler = fit$samplers$F_sampler
-  F_hypers = fit$samplers$F_hypers
+  if (fit$data$random_effects){
+    F_hypers = fit$samplers$F_hypers
+  } else{
+    F_hypers = fit$samplers$Y_hypers
+  }
+  
+  
   # Which coefficients are we looking to pull out?
   if (is.null((k))){
     # Then we pull out everything
@@ -112,14 +118,24 @@ select_betas = function(fit, max_model_size = 100, include_re = T,
   N_iter = fit$data$N_iter
   warmup = fit$data$warmup
   if (is.null(N_samples)){
-    N_samples = N_iter
+    N_samples = N_iter-warmup
   }
   F_sampler = fit$samplers$F_sampler
-  F_hypers = fit$samplers$F_hypers
-  Z_hypers = fit$samplers$Z_hypers
+  if (fit$data$random_effects){
+    F_hypers = fit$samplers$F_hypers
+    Z_hypers = fit$samplers$Z_hypers
+  } else {
+    F_hypers = fit$samplers$Y_hypers
+    Z_hypers = fit$samplers$Y_hypers
+  }
+  
   # Pick out most likely active coefs
   id_j = order(apply(F_hypers$lambda[warmup:N_iter,],2,mean),decreasing = T)[1:max_model_size]
-  beta.hat = bfg::get_beta(fit,k = id_j,N_samples = N_samples_weights)
+  if (is.null(fit$beta.hat)){
+    beta.hat = bfg::get_beta(fit,k = id_j,N_samples = N_samples_weights)
+  } else{
+    beta.hat = fit$beta.hat[warmup:N_iter,id_j,]
+  }
   beta.mean = apply(beta.hat,c(2,3),mean,na.rm=T)
   # Pull out full model fit
   F.mean = apply(F_sampler$samples[warmup:N_iter,,],c(2,3),mean)
@@ -149,14 +165,19 @@ select_betas = function(fit, max_model_size = 100, include_re = T,
     XB2 = sum((XB)^2)
     
     # Random effect trace
-    if (include_re){
-      post_trace = m*sum(Z_hypers$gamma[i,]^2) + n*m*Z_hypers$sigma_sq[i]
-    } else {
-      post_trace = n*m*Z_hypers$sigma_sq[i]
+    if (fit$data$random_effects){
+      if (include_re){
+        post_trace = m*sum(Z_hypers$gamma[i,]^2) + n*m*Z_hypers$sigma_sq[i]
+      } else {
+        post_trace = n*m*Z_hypers$sigma_sq[i]
+      }
+    } else{
+      post_trace = n*m*Z_hypers$sigma[i]^2
     }
+    
    
     # Zeroth-version
-    rho2[ii] = XB2 / (XB2 + post_trace)
+    rho2[ii] = XB2 / (XB2 + post_trace) 
     
     # lam version
     err_lam <- numeric(L) # Summing over every lambda value

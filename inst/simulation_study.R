@@ -34,7 +34,7 @@ for (RZ2 in rz2_list){
       Y = data_generated$Y
       X = data_generated$X
       t = data_generated$T
-      true = which(apply(data_generated$B,1,function(sx) any(x != 0)))
+      true = which(apply(data_generated$B,1,function(x) any(x != 0)))
       tryCatch({
         # Run bfg
         fit = bfg(Y,X,t,p0=floor(0.2*p),data_generated=data_generated,
@@ -51,7 +51,7 @@ for (RZ2 in rz2_list){
         mciw = mean(beta.quantiles[2,,] - beta.quantiles[1,,])
         coverage = mean((beta.quantiles[1,,] <= data_generated$B) & (data_generated$B <= beta.quantiles[2,,]))
         # Select coefs
-        id_j = select_betas(fit,max_model_size=50,N_samples=1000,N_samples_weights=1000,plot=F)
+        id_j = select_betas(fit,max_model_size=50,N_samples=1000,N_samples_weights=1000,plot=T)
         # Compute FPR and TPR for ROC curves
         FPR_TPR = matrix(NA,ncol=50,nrow=2)
         for (i in 1:length(id_j$models)){
